@@ -1,0 +1,79 @@
+use std::path::PathBuf;
+
+use crate::error::{AppError, AppResult};
+
+pub fn home_dir() -> AppResult<PathBuf> {
+    dirs::home_dir().ok_or(AppError::NoHomeDir)
+}
+
+pub fn cloudflared_dir() -> AppResult<PathBuf> {
+    Ok(home_dir()?.join(".cloudflared"))
+}
+
+pub fn cert_path() -> AppResult<PathBuf> {
+    Ok(cloudflared_dir()?.join("cert.pem"))
+}
+
+pub fn flaredeck_index_path() -> AppResult<PathBuf> {
+    Ok(cloudflared_dir()?.join("flaredeck.json"))
+}
+
+fn fallback_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    if let Some(home) = dirs::home_dir() {
+        paths.push(home.join(".local/bin/cloudflared"));
+        #[cfg(target_os = "windows")]
+        paths.push(home.join("AppData/Local/cloudflared/cloudflared.exe"));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        paths.push(PathBuf::from("/opt/homebrew/bin/cloudflared"));
+        paths.push(PathBuf::from("/usr/local/bin/cloudflared"));
+        paths.push(PathBuf::from("/opt/local/bin/cloudflared"));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        paths.push(PathBuf::from("/usr/local/bin/cloudflared"));
+        paths.push(PathBuf::from("/usr/bin/cloudflared"));
+        paths.push(PathBuf::from("/snap/bin/cloudflared"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(program_files) = std::env::var("ProgramFiles") {
+            paths.push(PathBuf::from(program_files).join("cloudflared/cloudflared.exe"));
+        }
+        if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
+            paths.push(PathBuf::from(program_files_x86).join("cloudflared/cloudflared.exe"));
+        }
+    }
+
+    paths
+}
+
+pub fn resolve_cloudflared_path() -> Option<PathBuf> {
+    if let Ok(path) = which::which("cloudflared") {
+        return Some(path);
+    }
+    fallback_paths().into_iter().find(|p| p.exists())
+}
+
+pub async fn cloudflared_version(path: &std::path::Path) -> Option<String> {
+    let output = tokio::process::Command::new(path)
+        .arg("--version")
+        .output()
+        .await
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Some(stdout.lines().next().unwrap_or("").trim().to_string())
+}
+
+pub fn ensure_cloudflared() -> AppResult<PathBuf> {
+    resolve_cloudflared_path().ok_or(AppError::CloudflaredMissing)
+}
