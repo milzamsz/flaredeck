@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Download FlareDeck</title>
+    <meta
+      name="description"
+      content="Desktop control panel for Cloudflare Tunnel. Download FlareDeck for Windows, macOS, or Linux."
+    />
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        max-width: 720px; margin: 0 auto; padding: 4rem 1.5rem; line-height: 1.5;
+      }
+      h1 { font-size: 2.25rem; margin: 0 0 0.5rem; }
+      h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-top: 2.5rem; }
+      .muted { color: #6b7280; }
+      .primary-cta {
+        display: inline-block; padding: 0.85rem 1.5rem; border-radius: 0.5rem;
+        background: #f38020; color: white; text-decoration: none; font-weight: 500;
+        font-size: 1.05rem;
+      }
+      .primary-cta:hover { opacity: 0.9; }
+      .grid { display: grid; gap: 1rem; grid-template-columns: 1fr; margin-top: 0.75rem; }
+      @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+      .card { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; }
+      .card h3 { margin: 0 0 0.5rem; text-transform: capitalize; }
+      .card ul { list-style: none; padding: 0; margin: 0; font-size: 0.9rem; }
+      .card li { margin: 0.25rem 0; }
+      .card a { color: #f38020; text-decoration: none; }
+      .card a:hover { text-decoration: underline; }
+      .hint { display: block; color: #9ca3af; font-size: 0.8rem; }
+      @media (prefers-color-scheme: dark) {
+        body { background: #0a0a0f; color: #e5e7eb; }
+        .card { border-color: #27272a; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Download FlareDeck</h1>
+    <p class="muted">
+      Desktop control panel for Cloudflare Tunnel.
+      <span id="version"></span>
+    </p>
+
+    <section id="primary" hidden>
+      <h2>For your system</h2>
+      <a id="primary-cta" class="primary-cta" href="#">Download</a>
+      <p id="primary-hint" class="muted" style="margin-top: 0.5rem;"></p>
+    </section>
+
+    <section>
+      <h2>All platforms</h2>
+      <div class="grid" id="all-grid"></div>
+    </section>
+
+    <p style="margin-top: 3rem;" class="muted">
+      Looking for an older version? Browse
+      <a id="all-releases" style="color: inherit;" href="#">all releases on GitHub</a>.
+    </p>
+
+    <script>
+      // Keep in sync with docs/website/Download.tsx — single source of
+      // truth for asset filenames produced by tauri-action.
+      const GH_REPO = 'milzamsz/flaredeck'
+      const ALL = {
+        windows: [
+          { label: 'Windows installer (.exe)', filename: 'FlareDeck_{version}_x64-setup.exe', hint: 'Recommended. Handles WebView2 bootstrap.' },
+          { label: 'Windows portable (.exe)', filename: 'flaredeck.exe', hint: 'Single-file binary.' },
+        ],
+        macos: [
+          { label: 'macOS Universal (.dmg)', filename: 'FlareDeck_{version}_universal.dmg', hint: 'Apple Silicon + Intel.' },
+        ],
+        linux: [
+          { label: 'AppImage', filename: 'FlareDeck_{version}_amd64.AppImage', hint: 'Mark executable, then double-click.' },
+          { label: 'Debian / Ubuntu (.deb)', filename: 'FlareDeck_{version}_amd64.deb' },
+        ],
+      }
+      const releaseUrl = f => `https://github.com/${GH_REPO}/releases/latest/download/${f}`
+      const allReleasesUrl = `https://github.com/${GH_REPO}/releases`
+      document.getElementById('all-releases').href = allReleasesUrl
+
+      function detectOS() {
+        const data = navigator.userAgentData
+        if (data && data.platform) {
+          const p = String(data.platform).toLowerCase()
+          if (p.includes('win')) return 'windows'
+          if (p.includes('mac')) return 'macos'
+          if (p.includes('linux')) return 'linux'
+        }
+        const ua = (navigator.userAgent || '').toLowerCase()
+        if (ua.includes('windows')) return 'windows'
+        if (ua.includes('mac os')) return 'macos'
+        if (ua.includes('linux')) return 'linux'
+        return null
+      }
+
+      let version = ''
+      fetch('/latest.json')
+        .then(r => r.ok ? r.json() : null)
+        .then(m => {
+          if (m && m.version) {
+            version = m.version.replace(/^v/, '')
+            document.getElementById('version').textContent = 'v' + version
+          }
+          render()
+        })
+        .catch(() => render())
+
+      function fill(f) {
+        return f.replace('{version}', version)
+      }
+
+      function render() {
+        const os = detectOS()
+        if (os) {
+          const primary = ALL[os][0]
+          document.getElementById('primary-cta').href = releaseUrl(fill(primary.filename))
+          document.getElementById('primary-cta').textContent = primary.label
+          document.getElementById('primary-hint').textContent = primary.hint || ''
+          document.getElementById('primary').hidden = false
+        }
+        const grid = document.getElementById('all-grid')
+        grid.innerHTML = ''
+        for (const key of ['windows', 'macos', 'linux']) {
+          const card = document.createElement('div')
+          card.className = 'card'
+          card.innerHTML = '<h3>' + key + '</h3><ul></ul>'
+          const ul = card.querySelector('ul')
+          for (const a of ALL[key]) {
+            const li = document.createElement('li')
+            li.innerHTML =
+              '<a href="' + releaseUrl(fill(a.filename)) + '">' + a.label + '</a>' +
+              (a.hint ? '<span class="hint">' + a.hint + '</span>' : '')
+            ul.appendChild(li)
+          }
+          grid.appendChild(card)
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -6,7 +6,10 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'src-tauri/target']),
+  // `docs/website/*` is reference code intended to be copied into a
+  // separate repo (flaredeck-web), where it'll live under that repo's
+  // own ESLint config. Ignore it here so we don't enforce two configs.
+  globalIgnores(['dist', 'src-tauri/target', 'docs/website']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

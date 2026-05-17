@@ -1,11 +1,13 @@
 import { useTranslation } from 'react-i18next'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
+  AlertTriangle,
   CheckCircle2,
   Cog,
   FileText,
-  KeyRound,
   LayoutDashboard,
+  Plus,
+  ShieldCheck,
   User,
   Wifi,
   WifiOff,
@@ -25,6 +27,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store/app-store'
 import { cn } from '@/lib/utils'
@@ -37,12 +40,19 @@ type Item = {
 
 export function AppSidebar() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const tunnelStatus = useAppStore((s) => s.tunnelStatus)
   const cloudflaredInstalled = useAppStore((s) => s.cloudflaredInstalled)
-  const isAuthenticated = useAppStore((s) => s.isAuthenticated)
   const profiles = useAppStore((s) => s.profiles)
   const activeProfileId = useAppStore((s) => s.activeProfileId)
   const setActiveProfile = useAppStore((s) => s.setActiveProfile)
+  const setNewProfileDialogOpen = useAppStore((s) => s.setNewProfileDialogOpen)
+
+  const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null
+  const apiConnected = Boolean(
+    activeProfile?.hasApiToken && activeProfile.zoneId,
+  )
+  const goToCredentials = () => navigate('/settings')
 
   const items: Item[] = [
     { to: '/', label: t('nav.dashboard'), Icon: LayoutDashboard },
@@ -98,27 +108,56 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {profiles.length > 0 && (
-          <SidebarGroup>
+        <SidebarGroup>
+          <div className="flex items-center justify-between pr-1 group-data-[collapsible=icon]:hidden">
             <SidebarGroupLabel>{t('nav.profiles')}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {profiles.map((p) => (
-                  <SidebarMenuItem key={p.id}>
-                    <SidebarMenuButton
-                      isActive={p.id === activeProfileId}
-                      onClick={() => void setActiveProfile(p.id)}
-                      tooltip={p.name}
-                    >
-                      <User className="size-4" />
-                      <span className="truncate">{p.name}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={t('dashboard.newProfile')}
+                    onClick={() => setNewProfileDialogOpen(true)}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {t('dashboard.newProfile')}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {profiles.map((p) => (
+                <SidebarMenuItem key={p.id}>
+                  <SidebarMenuButton
+                    isActive={p.id === activeProfileId}
+                    onClick={() => void setActiveProfile(p.id)}
+                    tooltip={p.name}
+                  >
+                    <User className="size-4" />
+                    <span className="truncate">{p.name}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+              {/* In collapsed (icon-only) mode, the header above is
+                  hidden — surface the + here so the user can still
+                  create a profile. */}
+              <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
+                <SidebarMenuButton
+                  tooltip={t('dashboard.newProfile')}
+                  onClick={() => setNewProfileDialogOpen(true)}
+                >
+                  <Plus className="size-4" />
+                  <span>{t('dashboard.newProfile')}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>
@@ -164,20 +203,33 @@ export function AppSidebar() {
               {t(cloudflaredInstalled ? 'status.found' : 'status.missing')}
             </Badge>
           </div>
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-muted-foreground">{t('status.auth')}</span>
+          <button
+            type="button"
+            onClick={goToCredentials}
+            className="flex items-center justify-between gap-2 rounded-md text-xs hover:bg-sidebar-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={t('sidebar.api')}
+          >
+            <span className="text-muted-foreground">{t('sidebar.api')}</span>
             <Badge
               className={cn(
                 'gap-1',
-                isAuthenticated
+                apiConnected
                   ? 'bg-green-600 text-white hover:bg-green-600'
                   : 'bg-zinc-500 text-white hover:bg-zinc-500',
               )}
             >
-              <KeyRound className="size-3" />
-              {t(isAuthenticated ? 'status.signedIn' : 'status.notSignedIn')}
+              {apiConnected ? (
+                <ShieldCheck className="size-3" />
+              ) : (
+                <AlertTriangle className="size-3" />
+              )}
+              {t(
+                apiConnected
+                  ? 'sidebar.apiConnected'
+                  : 'sidebar.apiNotConfigured',
+              )}
             </Badge>
-          </div>
+          </button>
         </div>
 
         {/* Collapsed (icon rail) layout: stacked icon dots with tooltips. */}
@@ -232,18 +284,29 @@ export function AppSidebar() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <div
+                <button
+                  type="button"
+                  onClick={goToCredentials}
                   className={cn(
-                    'flex size-7 items-center justify-center rounded-md text-white',
-                    isAuthenticated ? 'bg-green-600' : 'bg-zinc-500',
+                    'flex size-7 items-center justify-center rounded-md text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    apiConnected ? 'bg-green-600' : 'bg-zinc-500',
                   )}
+                  aria-label={t('sidebar.api')}
                 >
-                  <KeyRound className="size-4" />
-                </div>
+                  {apiConnected ? (
+                    <ShieldCheck className="size-4" />
+                  ) : (
+                    <AlertTriangle className="size-4" />
+                  )}
+                </button>
               </TooltipTrigger>
               <TooltipContent side="right">
-                {t('status.auth')}:{' '}
-                {t(isAuthenticated ? 'status.signedIn' : 'status.notSignedIn')}
+                {t('sidebar.api')}:{' '}
+                {t(
+                  apiConnected
+                    ? 'sidebar.apiConnected'
+                    : 'sidebar.apiNotConfigured',
+                )}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

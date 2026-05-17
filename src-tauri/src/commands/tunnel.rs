@@ -1,14 +1,16 @@
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-use crate::cloudflared::{cloudflared_dir, ensure_cloudflared, flaredeck_index_path};
+use crate::cloudflared::{
+    cloudflared_dir, effective_cert_path, ensure_cloudflared, flaredeck_index_path,
+};
 use crate::error::{AppError, AppResult};
 use crate::state::RuntimeState;
-use crate::types::{CloudflaredInfo, CreatedTunnel, ProfileIndex, TunnelListEntry, TunnelStatus};
+use crate::types::{CloudflaredInfo, ProfileIndex, TunnelStatus};
 
 const FAILURE_WINDOW_SECS: u64 = 30;
 const FAILURE_LIMIT: usize = 3;
@@ -162,6 +164,7 @@ pub async fn tunnel_start(
     let profile = resolve_profile(&profile_id).await?;
     let config_path = profile.config_path.clone();
     let tunnel_name = profile.tunnel_name.clone();
+    let cert = effective_cert_path(&profile)?;
 
     tokio::fs::create_dir_all(cloudflared_dir()?).await?;
 
@@ -171,6 +174,7 @@ pub async fn tunnel_start(
         cmd.arg("--config").arg(&config_path);
     }
     cmd.arg("run").arg(&tunnel_name);
+    cmd.env("TUNNEL_ORIGIN_CERT", &cert);
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
@@ -265,40 +269,9 @@ pub async fn tunnel_restart(
     Err(last_err.unwrap_or_else(|| AppError::Other("restart failed".into())))
 }
 
-#[derive(Debug, Deserialize)]
-struct CloudflaredListEntry {
-    id: String,
-    name: String,
-    #[serde(default)]
-    created_at: Option<String>,
-}
-
-#[tauri::command]
-pub async fn tunnel_list() -> AppResult<Vec<TunnelListEntry>> {
-    let binary = ensure_cloudflared()?;
-    let output = tokio::process::Command::new(&binary)
-        .args(["tunnel", "list", "--output", "json"])
-        .output()
-        .await?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        return Err(AppError::CloudflaredFailed(
-            output.status.code().unwrap_or(-1),
-            stderr,
-        ));
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let entries: Vec<CloudflaredListEntry> = serde_json::from_str(&stdout).unwrap_or_default();
-    Ok(entries
-        .into_iter()
-        .map(|e| TunnelListEntry {
-            id: e.id,
-            name: e.name,
-            created_at: e.created_at,
-        })
-        .collect())
-}
-
+/// CLI fallback when a profile doesn't have a Cloudflare API token
+/// configured. The API-token path goes through `cf_route_dns` in
+/// `commands/cf.rs`.
 #[tauri::command]
 pub async fn tunnel_route_dns(tunnel_name: String, hostname: String) -> AppResult<()> {
     let binary = ensure_cloudflared()?;
@@ -314,87 +287,6 @@ pub async fn tunnel_route_dns(tunnel_name: String, hostname: String) -> AppResul
         ));
     }
     Ok(())
-}
-
-#[derive(Debug, Deserialize)]
-struct CloudflaredCreatedTunnel {
-    id: String,
-    name: String,
-}
-
-#[tauri::command]
-pub async fn tunnel_create(name: String) -> AppResult<CreatedTunnel> {
-    let binary = ensure_cloudflared()?;
-    let output = tokio::process::Command::new(&binary)
-        .args(["tunnel", "create", "--output", "json", &name])
-        .output()
-        .await?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        return Err(AppError::CloudflaredFailed(
-            output.status.code().unwrap_or(-1),
-            stderr,
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    let (uuid, parsed_name) = if let Ok(parsed) =
-        serde_json::from_str::<CloudflaredCreatedTunnel>(stdout.trim())
-    {
-        (parsed.id, parsed.name)
-    } else {
-        let combined = format!("{stdout}\n{stderr}");
-        let uuid = find_uuid(&combined).ok_or_else(|| {
-            AppError::Other("could not parse tunnel uuid from cloudflared output".into())
-        })?;
-        (uuid, name.clone())
-    };
-
-    let credentials_file = cloudflared_dir()?
-        .join(format!("{uuid}.json"))
-        .to_string_lossy()
-        .to_string();
-
-    Ok(CreatedTunnel {
-        uuid,
-        name: parsed_name,
-        credentials_file,
-    })
-}
-
-fn find_uuid(s: &str) -> Option<String> {
-    let bytes = s.as_bytes();
-    // Pattern: 8-4-4-4-12 hex chars separated by '-' (36 chars).
-    for i in 0..bytes.len().saturating_sub(35) {
-        let candidate = &bytes[i..i + 36];
-        if is_uuid(candidate) {
-            return Some(
-                std::str::from_utf8(candidate)
-                    .ok()?
-                    .to_ascii_lowercase(),
-            );
-        }
-    }
-    None
-}
-
-fn is_uuid(b: &[u8]) -> bool {
-    const DASHES: [usize; 4] = [8, 13, 18, 23];
-    if b.len() != 36 {
-        return false;
-    }
-    for (idx, byte) in b.iter().enumerate() {
-        if DASHES.contains(&idx) {
-            if *byte != b'-' {
-                return false;
-            }
-        } else if !byte.is_ascii_hexdigit() {
-            return false;
-        }
-    }
-    true
 }
 
 #[cfg(unix)]

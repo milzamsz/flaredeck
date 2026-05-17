@@ -10,13 +10,6 @@ pub struct CloudflaredInfo {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct AuthStatus {
-    pub authenticated: bool,
-    pub cert_path: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct TunnelStatus {
     pub profile_id: String,
     pub running: bool,
@@ -74,6 +67,16 @@ pub struct Profile {
     pub config_path: String,
     #[serde(default)]
     pub wsl_host: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zone_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zone_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cert_path: Option<String>,
+    #[serde(default)]
+    pub has_api_token: bool,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -81,14 +84,18 @@ pub struct Profile {
 pub struct ProfilePatch {
     pub name: Option<String>,
     pub wsl_host: Option<bool>,
+    pub account_id: Option<String>,
+    pub zone_id: Option<String>,
+    pub zone_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct CreatedTunnel {
-    pub uuid: String,
-    pub name: String,
-    pub credentials_file: String,
+pub struct TokenInfo {
+    pub valid: bool,
+    pub status: Option<String>,
+    pub id: Option<String>,
+    pub expires_on: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -105,11 +112,3 @@ pub struct DnsLookupResult {
     pub addresses: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct TunnelListEntry {
-    pub id: String,
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub created_at: Option<String>,
-}

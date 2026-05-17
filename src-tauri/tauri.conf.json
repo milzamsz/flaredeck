@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -36,5 +37,13 @@
       "icons/icon.ico",
       "icons/icon.icns"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdEOEQzMzEwMjU3QTc0MQpSV1JCcDFjQ01kUFlCeWlKTURycitqeVljZ0h0Sytyb3IwcFVtQkFLMUkxRDA4Z0o0MVJTWFdUVgo=",
+      "endpoints": [
+        "https://flaredeck.com/latest.json"
+      ]
+    }
   }
 }

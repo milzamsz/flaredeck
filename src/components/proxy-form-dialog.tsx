@@ -99,10 +99,18 @@ export function ProxyFormDialog({ open, initial, title, onSubmit, onOpenChange }
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="path">{t('proxy.pathOptional')}</Label>
-            <Input id="path" placeholder="/api" {...register('path')} />
-          </div>
+          <details
+            className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm"
+            open={Boolean(initial?.path)}
+          >
+            <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">
+              {t('proxy.advanced')}
+            </summary>
+            <div className="mt-2 space-y-2">
+              <Label htmlFor="path">{t('proxy.pathOptional')}</Label>
+              <Input id="path" placeholder="/api" {...register('path')} />
+            </div>
+          </details>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

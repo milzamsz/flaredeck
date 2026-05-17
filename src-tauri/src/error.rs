@@ -21,6 +21,16 @@ pub enum AppError {
     ProfileAlreadyRunning(String),
     #[error("home directory not resolvable")]
     NoHomeDir,
+    #[error("no Cloudflare API token configured for profile {0}")]
+    NoApiToken(String),
+    #[error("missing Cloudflare {0} on profile (set it in the credentials section)")]
+    MissingProfileField(&'static str),
+    #[error("secret storage error: {0}")]
+    Secret(String),
+    #[error("http error: {0}")]
+    Http(String),
+    #[error("Cloudflare API error: {0}")]
+    Cloudflare(String),
     #[error("{0}")]
     Other(String),
 }

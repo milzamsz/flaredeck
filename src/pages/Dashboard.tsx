@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Play, Plus, RefreshCw, Square } from 'lucide-react'
+import {
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Play,
+  Plus,
+  RefreshCw,
+  Square,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -15,12 +23,21 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { LogViewer } from '@/components/log-viewer'
 import { ProxyFormDialog, type ProxyFormValues } from '@/components/proxy-form-dialog'
 import { ProxyTable } from '@/components/proxy-table'
 import { useAppStore, type ProxyItem, type TunnelLifecycle } from '@/store/app-store'
-import { tauri } from '@/lib/tauriApi'
+import { CF_TOKEN_CREATE_URL, routeDnsForProfile, tauri } from '@/lib/tauriApi'
+
+const REUSE_TOKEN_NEW = '__new__'
 
 function NewProfileDialog({
   open,
@@ -30,17 +47,42 @@ function NewProfileDialog({
   onOpenChange: (v: boolean) => void
 }) {
   const { t } = useTranslation()
-  const createProfile = useAppStore((s) => s.createProfile)
-  const isAuthenticated = useAppStore((s) => s.isAuthenticated)
+  const createProfileSimple = useAppStore((s) => s.createProfileSimple)
   const wslHostIp = useAppStore((s) => s.wslHostIp)
+  const profiles = useAppStore((s) => s.profiles)
+  const tokenSourceProfiles = profiles.filter((p) => p.hasApiToken)
+
   const [name, setName] = useState('')
-  const [tunnel, setTunnel] = useState('')
+  const [token, setToken] = useState('')
+  const [showToken, setShowToken] = useState(false)
+  const [reuseFrom, setReuseFrom] = useState<string>(REUSE_TOKEN_NEW)
+  const [domain, setDomain] = useState('')
   const [wslHost, setWslHost] = useState(true)
-  const [createTunnel, setCreateTunnel] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
+  const usingReuse = reuseFrom !== REUSE_TOKEN_NEW
+  const canSubmit =
+    name.trim() &&
+    domain.trim() &&
+    (usingReuse || token.trim()) &&
+    !submitting
+
+  const reset = () => {
+    setName('')
+    setToken('')
+    setShowToken(false)
+    setReuseFrom(REUSE_TOKEN_NEW)
+    setDomain('')
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) reset()
+        onOpenChange(v)
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('profile.newTitle')}</DialogTitle>
@@ -55,32 +97,104 @@ function NewProfileDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('profile.displayNamePlaceholder')}
+              autoFocus
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="tunnel-name">{t('profile.tunnelName')}</Label>
+
+          {tokenSourceProfiles.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="profile-reuse-token">
+                {t('profile.tokenSource')}
+              </Label>
+              <Select value={reuseFrom} onValueChange={setReuseFrom}>
+                <SelectTrigger id="profile-reuse-token">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={REUSE_TOKEN_NEW}>
+                    {t('profile.tokenSourceNew')}
+                  </SelectItem>
+                  {tokenSourceProfiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {t('profile.tokenSourceReuse', { name: p.name })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {!usingReuse && (
+            <div className="space-y-1">
+              <Label htmlFor="profile-token">{t('profile.token')}</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="profile-token"
+                  type={showToken ? 'text' : 'password'}
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder={t('profile.tokenPlaceholder')}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label={t(
+                    showToken
+                      ? 'settings.credsTokenHide'
+                      : 'settings.credsTokenShow',
+                  )}
+                  onClick={() => setShowToken((v) => !v)}
+                >
+                  {showToken ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('profile.tokenHelp')}{' '}
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                  onClick={() => void tauri.shellOpenExternal(CF_TOKEN_CREATE_URL)}
+                >
+                  {t('profile.tokenCreateLink')}
+                  <ExternalLink className="size-3" />
+                </button>
+              </p>
+              <div className="rounded-md border border-border/60 bg-muted/40 p-2 text-xs text-muted-foreground">
+                <div className="mb-1 font-medium text-foreground">
+                  {t('profile.tokenScopesHeading')}
+                </div>
+                <ul className="ml-1 list-disc pl-4 space-y-0.5">
+                  <li>{t('profile.tokenScopeTunnel')}</li>
+                  <li>{t('profile.tokenScopeZoneRead')}</li>
+                  <li>{t('profile.tokenScopeDnsEdit')}</li>
+                </ul>
+                <p className="mt-1">{t('profile.tokenScopesNote')}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <Label htmlFor="profile-domain">{t('profile.domain')}</Label>
             <Input
-              id="tunnel-name"
-              value={tunnel}
-              onChange={(e) => setTunnel(e.target.value)}
-              placeholder={t('profile.tunnelNamePlaceholder')}
+              id="profile-domain"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder={t('profile.domainPlaceholder')}
+              autoComplete="off"
+              spellCheck={false}
             />
+            <p className="text-xs text-muted-foreground">
+              {t('profile.domainHelp')}
+            </p>
           </div>
-          <div className="flex items-start gap-2">
-            <input
-              id="profile-create-tunnel"
-              type="checkbox"
-              className="mt-1"
-              checked={createTunnel}
-              onChange={(e) => setCreateTunnel(e.target.checked)}
-            />
-            <Label htmlFor="profile-create-tunnel" className="leading-tight">
-              <span className="block">{t('profile.createTunnel')}</span>
-              <span className="block text-xs font-normal text-muted-foreground">
-                {t('profile.createTunnelHelp')}
-              </span>
-            </Label>
-          </div>
+
           <div className="flex items-start gap-2">
             <input
               id="profile-wsl-host"
@@ -105,22 +219,18 @@ function NewProfileDialog({
             {t('profile.cancel')}
           </Button>
           <Button
-            disabled={!name.trim() || !tunnel.trim() || submitting}
+            disabled={!canSubmit}
             onClick={async () => {
-              if (createTunnel && !isAuthenticated) {
-                toast.error(t('profile.signInRequired'))
-                return
-              }
               setSubmitting(true)
               try {
-                await createProfile(
+                await createProfileSimple(
                   name.trim(),
-                  tunnel.trim(),
+                  usingReuse ? '' : token.trim(),
+                  usingReuse ? reuseFrom : null,
+                  domain.trim(),
                   wslHost,
-                  createTunnel,
                 )
-                setName('')
-                setTunnel('')
+                reset()
                 onOpenChange(false)
                 toast.success(t('profile.created'))
               } catch (e) {
@@ -130,7 +240,7 @@ function NewProfileDialog({
               }
             }}
           >
-            {t('profile.create')}
+            {submitting ? t('profile.creating') : t('profile.create')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -164,7 +274,8 @@ export default function Dashboard() {
 
   const [editTarget, setEditTarget] = useState<ProxyItem | null>(null)
   const [proxyFormOpen, setProxyFormOpen] = useState(false)
-  const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const profileDialogOpen = useAppStore((s) => s.newProfileDialogOpen)
+  const setProfileDialogOpen = useAppStore((s) => s.setNewProfileDialogOpen)
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null
 
@@ -191,10 +302,19 @@ export default function Dashboard() {
         })
         toast.success(t('proxy.routeAdded'))
       }
-      if (config?.tunnel) {
+      if (config?.tunnel && activeProfile) {
         try {
-          await tauri.tunnelRouteDns(config.tunnel, values.hostname)
-          toast.message(t('proxy.dnsConfigured'), { description: values.hostname })
+          const { via } = await routeDnsForProfile(
+            activeProfile,
+            values.hostname,
+            config.tunnel,
+          )
+          toast.message(t('proxy.dnsConfigured'), {
+            description:
+              via === 'api'
+                ? t('proxy.dnsConfiguredViaApi', { hostname: values.hostname })
+                : values.hostname,
+          })
         } catch (e) {
           toast.error(t('proxy.dnsRouteFailed', { message: String(e) }))
         }
@@ -289,20 +409,15 @@ export default function Dashboard() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">{t('dashboard.ingressRules')}</h3>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setProfileDialogOpen(true)}>
-              <Plus className="size-4" /> {t('dashboard.newProfile')}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditTarget(null)
-                setProxyFormOpen(true)
-              }}
-            >
-              <Plus className="size-4" /> {t('dashboard.addRoute')}
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditTarget(null)
+              setProxyFormOpen(true)
+            }}
+          >
+            <Plus className="size-4" /> {t('dashboard.addRoute')}
+          </Button>
         </div>
         <ProxyTable
           onEdit={(item) => {

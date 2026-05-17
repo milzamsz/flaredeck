@@ -1,12 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from 'next-themes'
-import { ExternalLink, LogIn, LogOut, Trash2 } from 'lucide-react'
+import {
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
+
+import { useUpdater } from '@/lib/updater'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -16,13 +26,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAppStore } from '@/store/app-store'
-import { tauri } from '@/lib/tauriApi'
+import {
+  CF_TOKEN_CREATE_URL,
+  CF_TOKEN_DOCS_URL,
+  normaliseDomainInput,
+  tauri,
+} from '@/lib/tauriApi'
 
 export default function SettingsPage() {
   const { t } = useTranslation()
   const { theme, setTheme: setNextTheme } = useTheme()
-  const isAuthenticated = useAppStore((s) => s.isAuthenticated)
-  const certPath = useAppStore((s) => s.certPath)
   const cloudflaredInstalled = useAppStore((s) => s.cloudflaredInstalled)
   const cloudflaredPath = useAppStore((s) => s.cloudflaredPath)
   const cloudflaredVersion = useAppStore((s) => s.cloudflaredVersion)
@@ -30,7 +43,6 @@ export default function SettingsPage() {
   const profiles = useAppStore((s) => s.profiles)
   const activeProfileId = useAppStore((s) => s.activeProfileId)
   const setStoreTheme = useAppStore((s) => s.setTheme)
-  const refreshAuth = useAppStore((s) => s.refreshAuth)
   const refreshCloudflared = useAppStore((s) => s.refreshCloudflared)
   const refreshWslHostIp = useAppStore((s) => s.refreshWslHostIp)
   const updateActiveProfile = useAppStore((s) => s.updateActiveProfile)
@@ -40,29 +52,11 @@ export default function SettingsPage() {
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId) ?? null
 
-  const [pollingLogin, setPollingLogin] = useState(false)
-
-  useEffect(() => {
-    if (!pollingLogin) return
-    const start = Date.now()
-    const id = setInterval(async () => {
-      await refreshAuth()
-      const { isAuthenticated } = useAppStore.getState()
-      if (isAuthenticated) {
-        toast.success(t('settings.signedInToast'))
-        clearInterval(id)
-        setPollingLogin(false)
-      } else if (Date.now() - start > 5 * 60 * 1000) {
-        clearInterval(id)
-        setPollingLogin(false)
-      }
-    }, 2000)
-    return () => clearInterval(id)
-  }, [pollingLogin, refreshAuth, t])
-
   return (
     <main className="space-y-6 p-6">
       <h2 className="text-xl font-semibold">{t('nav.settings')}</h2>
+
+      <UpdateCard />
 
       <Card>
         <CardHeader>
@@ -205,64 +199,10 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('settings.accountTitle')}</CardTitle>
-          <CardDescription>{t('settings.accountDescription')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex items-center justify-between">
-            <span>{t('settings.status')}</span>
-            <Badge variant={isAuthenticated ? 'default' : 'outline'}>
-              {t(isAuthenticated ? 'status.signedIn' : 'status.notSignedIn')}
-            </Badge>
-          </div>
-          {certPath && (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">{t('settings.certificate')}</span>
-              <code className="rounded bg-muted px-1 text-xs">{certPath}</code>
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2 pt-2">
-            {isAuthenticated ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await tauri.authLogout()
-                    await refreshAuth()
-                    toast.success(t('settings.signedOut'))
-                  } catch (e) {
-                    toast.error(t('settings.signOutFailed', { message: String(e) }))
-                  }
-                }}
-              >
-                <LogOut className="size-4" /> {t('settings.signOut')}
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                disabled={!cloudflaredInstalled || pollingLogin}
-                onClick={async () => {
-                  try {
-                    await tauri.authLogin()
-                    setPollingLogin(true)
-                    toast.message(t('settings.browserOpened'), {
-                      description: t('settings.browserHint'),
-                    })
-                  } catch (e) {
-                    toast.error(t('settings.loginFailed', { message: String(e) }))
-                  }
-                }}
-              >
-                <LogIn className="size-4" />{' '}
-                {pollingLogin ? t('settings.waitingBrowser') : t('settings.signIn')}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {activeProfile && (
+        <CredentialsCard key={activeProfile.id} profile={activeProfile} />
+      )}
+
 
       <Card>
         <CardHeader>
@@ -320,5 +260,325 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </main>
+  )
+}
+
+type CredentialsCardProps = {
+  profile: NonNullable<ReturnType<typeof useAppStore.getState>['profiles']>[number]
+}
+
+function CredentialsCard({ profile }: CredentialsCardProps) {
+  const { t } = useTranslation()
+  const updateActiveProfile = useAppStore((s) => s.updateActiveProfile)
+  const refreshProfiles = useAppStore((s) => s.refreshProfiles)
+
+  const [tokenDraft, setTokenDraft] = useState('')
+  const [showToken, setShowToken] = useState(false)
+  const [domainDraft, setDomainDraft] = useState(profile.zoneName ?? '')
+  const [saving, setSaving] = useState(false)
+
+  // The card shows a single status line that summarises everything the
+  // user cares about. The two inputs (token, domain) are the only
+  // editable fields; Account ID and Zone ID happen invisibly on Save.
+  const connected = profile.hasApiToken && !!profile.zoneId
+  const hasPendingChanges =
+    tokenDraft.trim().length > 0 || domainDraft.trim() !== (profile.zoneName ?? '')
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {t('settings.credsTitle', { name: profile.name })}
+          <Badge variant={connected ? 'default' : 'outline'}>
+            {connected
+              ? t('settings.credsConnected', {
+                  zone: profile.zoneName ?? profile.zoneId,
+                })
+              : t('settings.credsNotConnected')}
+          </Badge>
+        </CardTitle>
+        <CardDescription>{t('settings.credsDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="space-y-1">
+          <Label htmlFor="cf-token">
+            {profile.hasApiToken
+              ? t('settings.credsTokenRotate')
+              : t('settings.credsTokenAdd')}
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id="cf-token"
+              type={showToken ? 'text' : 'password'}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={
+                profile.hasApiToken
+                  ? t('settings.credsTokenPlaceholderRotate')
+                  : t('settings.credsTokenPlaceholder')
+              }
+              value={tokenDraft}
+              onChange={(e) => setTokenDraft(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label={t(
+                showToken ? 'settings.credsTokenHide' : 'settings.credsTokenShow',
+              )}
+              onClick={() => setShowToken((v) => !v)}
+            >
+              {showToken ? (
+                <EyeOff className="size-4" />
+              ) : (
+                <Eye className="size-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t('settings.credsTokenHelp')}{' '}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+              onClick={() => void tauri.shellOpenExternal(CF_TOKEN_CREATE_URL)}
+            >
+              {t('settings.credsTokenCreateLink')}
+              <ExternalLink className="size-3" />
+            </button>
+            {' · '}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+              onClick={() => void tauri.shellOpenExternal(CF_TOKEN_DOCS_URL)}
+            >
+              {t('settings.credsTokenDocsLink')}
+              <ExternalLink className="size-3" />
+            </button>
+          </p>
+          <div className="rounded-md border border-border/60 bg-muted/40 p-2 text-xs text-muted-foreground">
+            <div className="mb-1 font-medium text-foreground">
+              {t('profile.tokenScopesHeading')}
+            </div>
+            <ul className="ml-1 list-disc pl-4 space-y-0.5">
+              <li>{t('profile.tokenScopeTunnel')}</li>
+              <li>{t('profile.tokenScopeZoneRead')}</li>
+              <li>{t('profile.tokenScopeDnsEdit')}</li>
+            </ul>
+            <p className="mt-1">{t('profile.tokenScopesNote')}</p>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="cf-domain">{t('settings.credsDomain')}</Label>
+          <Input
+            id="cf-domain"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={t('settings.credsDomainPlaceholder')}
+            value={domainDraft}
+            onChange={(e) => setDomainDraft(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            {t('settings.credsDomainHelp')}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button
+            size="sm"
+            disabled={saving || !hasPendingChanges}
+            onClick={async () => {
+              setSaving(true)
+              try {
+                // 1) Save token first so the lookup that follows has
+                //    something to authenticate with.
+                if (tokenDraft.trim()) {
+                  await tauri.profilesSetToken(profile.id, tokenDraft.trim())
+                }
+                // 2) If the domain changed, resolve and persist the new
+                //    account/zone IDs.
+                const cleaned = normaliseDomainInput(domainDraft)
+                const domainChanged = (cleaned ?? '') !== (profile.zoneName ?? '')
+                if (domainChanged && cleaned) {
+                  const r = await tauri.cfLookupZone(profile.id, cleaned)
+                  await updateActiveProfile({
+                    accountId: r.accountId,
+                    zoneId: r.zoneId,
+                    zoneName: r.zoneName,
+                  })
+                  toast.success(
+                    t('settings.credsLookupOk', {
+                      zone: r.zoneName,
+                      account: r.accountName ?? r.accountId,
+                    }),
+                  )
+                } else if (tokenDraft.trim()) {
+                  toast.success(t('settings.credsSaved'))
+                }
+                setTokenDraft('')
+                setShowToken(false)
+                await refreshProfiles()
+              } catch (e) {
+                toast.error(
+                  t('settings.credsSaveFailed', { message: String(e) }),
+                )
+              } finally {
+                setSaving(false)
+              }
+            }}
+          >
+            {saving ? t('settings.credsSaving') : t('settings.credsSave')}
+          </Button>
+          {profile.hasApiToken && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={async () => {
+                const ok = window.confirm(t('settings.credsDisconnectConfirm'))
+                if (!ok) return
+                try {
+                  await tauri.profilesClearToken(profile.id)
+                  await updateActiveProfile({
+                    accountId: '',
+                    zoneId: '',
+                    zoneName: '',
+                  })
+                  await refreshProfiles()
+                  setDomainDraft('')
+                  toast.success(t('settings.credsDisconnected'))
+                } catch (e) {
+                  toast.error(
+                    t('settings.credsDisconnectFailed', {
+                      message: String(e),
+                    }),
+                  )
+                }
+              }}
+            >
+              {t('settings.credsDisconnect')}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function UpdateCard() {
+  const { t } = useTranslation()
+  const { state, checkOnce, downloadAndInstall, restartNow } = useUpdater()
+
+  const fmtBytes = (n: number) => {
+    if (n < 1024) return `${n} B`
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+    return `${(n / 1024 / 1024).toFixed(1)} MB`
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {t('settings.updateTitle')}
+          {state.kind === 'available' && (
+            <Badge className="bg-green-600 text-white">
+              {t('settings.updateAvailable')}
+            </Badge>
+          )}
+          {state.kind === 'upToDate' && (
+            <Badge variant="outline">{t('settings.updateUpToDate')}</Badge>
+          )}
+        </CardTitle>
+        <CardDescription>{t('settings.updateDescription')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {state.kind === 'checking' && (
+          <p className="text-muted-foreground">{t('settings.updateChecking')}</p>
+        )}
+        {state.kind === 'error' && (
+          <p className="text-destructive">{state.message}</p>
+        )}
+        {state.kind === 'available' && (
+          <div className="space-y-2">
+            <p>
+              <span className="font-medium">
+                {t('settings.updateNewVersion', {
+                  version: state.update.version,
+                })}
+              </span>
+              {state.update.date && (
+                <span className="text-muted-foreground">
+                  {' '}
+                  · {state.update.date}
+                </span>
+              )}
+            </p>
+            {state.update.body && (
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded border bg-muted/40 p-2 text-xs">
+                {state.update.body}
+              </pre>
+            )}
+          </div>
+        )}
+        {state.kind === 'downloading' && (
+          <div className="space-y-1">
+            <p className="text-muted-foreground">
+              {t('settings.updateDownloading', {
+                downloaded: fmtBytes(state.downloaded),
+                total: state.total ? fmtBytes(state.total) : '?',
+              })}
+            </p>
+            {state.total !== null && (
+              <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{
+                    width: `${Math.min(100, (state.downloaded / state.total) * 100)}%`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {state.kind === 'ready' && (
+          <p className="text-muted-foreground">{t('settings.updateReady')}</p>
+        )}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {state.kind === 'available' && (
+            <Button
+              size="sm"
+              onClick={() => {
+                void downloadAndInstall()
+              }}
+            >
+              <Download className="size-4" />
+              {t('settings.updateInstall')}
+            </Button>
+          )}
+          {state.kind === 'ready' && (
+            <Button
+              size="sm"
+              onClick={() => {
+                void restartNow()
+              }}
+            >
+              {t('settings.updateRestart')}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={state.kind === 'checking' || state.kind === 'downloading'}
+            onClick={() => {
+              void checkOnce()
+            }}
+          >
+            <RefreshCw className="size-4" />
+            {t('settings.updateRecheck')}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

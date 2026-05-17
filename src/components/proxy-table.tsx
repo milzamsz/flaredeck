@@ -48,7 +48,6 @@ export function ProxyTable({ onEdit }: Props) {
         <TableRow>
           <TableHead>{t('proxy.hostname')}</TableHead>
           <TableHead>{t('proxy.service')}</TableHead>
-          <TableHead>{t('proxy.path')}</TableHead>
           <TableHead>{t('proxy.origin')}</TableHead>
           <TableHead>{t('proxy.dns')}</TableHead>
           <TableHead className="text-right">{t('proxy.actions')}</TableHead>
@@ -71,7 +70,6 @@ export function ProxyTable({ onEdit }: Props) {
               </a>
             </TableCell>
             <TableCell className="font-mono text-xs">{item.service}</TableCell>
-            <TableCell className="font-mono text-xs">{item.path ?? ''}</TableCell>
             <TableCell>
               <StatusPill kind="port" value={item.portStatus} />
             </TableCell>

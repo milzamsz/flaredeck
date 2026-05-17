@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (e.g. v0.2.1)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS (universal)
+            os: macos-latest
+            target: universal-apple-darwin
+            args: --target universal-apple-darwin
+          - label: Linux
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            args: ''
+          - label: Windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: ''
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Linux deps
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: 'FlareDeck ${{ github.event.inputs.tag || github.ref_name }}'
+          releaseBody: |
+            See the [download page](https://flaredeck.com/download) for installers.
+
+            Signed updater bundles for each platform are attached below.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  manifest:
+    name: Update latest.json on flaredeck-web
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch updater manifest assets from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p artifacts
+          # tauri-action uploads a `latest.json` per platform AS WELL AS
+          # the *.sig signature files. We download all three platform
+          # manifests and merge them into a single `latest.json`.
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern 'latest*.json' \
+            --dir artifacts \
+            || true
+          ls -la artifacts
+
+      - name: Merge per-platform manifests
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = require("node:path");
+            const files = fs.readdirSync("artifacts").filter(f => f.endsWith(".json"));
+            const merged = { version: "", notes: "", pub_date: new Date().toISOString(), platforms: {} };
+            for (const f of files) {
+              const data = JSON.parse(fs.readFileSync(path.join("artifacts", f), "utf8"));
+              if (!merged.version) merged.version = data.version;
+              if (!merged.notes && data.notes) merged.notes = data.notes;
+              if (data.pub_date) merged.pub_date = data.pub_date;
+              if (data.platforms) Object.assign(merged.platforms, data.platforms);
+            }
+            fs.writeFileSync("latest.json", JSON.stringify(merged, null, 2));
+            console.log(merged);
+          '
+
+      - name: Checkout flaredeck-web
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.WEB_REPO }}        # e.g. milzamsz/flaredeck-web
+          token: ${{ secrets.WEB_REPO_PAT }}         # PAT with `contents:write` on the web repo
+          path: web
+
+      - name: Copy latest.json into the web repo
+        run: |
+          set -e
+          mkdir -p web/public
+          cp latest.json web/public/latest.json
+
+      - name: Commit and push
+        working-directory: web
+        run: |
+          set -e
+          git config user.name "flaredeck-releaser"
+          git config user.email "releaser@flaredeck.com"
+          if git diff --quiet public/latest.json; then
+            echo "No change to latest.json — skipping commit."
+            exit 0
+          fi
+          git add public/latest.json
+          git commit -m "release: update latest.json for ${{ steps.tag.outputs.tag }}"
+          git push

@@ -24,3 +24,6 @@ src-tauri/target
 *.njsproj
 *.sln
 *.sw?
+
+# Agentic dev scratch (Claude Code, Codeium, etc.)
+.claude/

@@ -31,6 +31,11 @@ export type Profile = {
   tunnelName: string
   configPath: string
   wslHost: boolean
+  accountId?: string | null
+  zoneId?: string | null
+  zoneName?: string | null
+  certPath?: string | null
+  hasApiToken: boolean
 }
 
 export type LogEntry = {
@@ -67,8 +72,6 @@ type AppState = PersistedSlice & {
   profiles: Profile[]
   tunnelStatus: TunnelLifecycle
   tunnelPid: number | null
-  isAuthenticated: boolean
-  certPath: string | null
   cloudflaredPath: string | null
   cloudflaredInstalled: boolean
   cloudflaredVersion: string | null
@@ -76,6 +79,7 @@ type AppState = PersistedSlice & {
   minimizeToTray: boolean
   trayHintShown: boolean
   closeChoiceMade: boolean
+  newProfileDialogOpen: boolean
   config: CloudflaredConfig | null
   configRaw: string
   configPath: string | null
@@ -84,12 +88,12 @@ type AppState = PersistedSlice & {
 
   setTheme: (theme: PersistedSlice['theme']) => void
   setActiveProfile: (id: string | null) => Promise<void>
+  setNewProfileDialogOpen: (v: boolean) => void
   appendLog: (entry: Omit<LogEntry, 'id' | 'ts'>) => void
   clearLogs: () => void
 
   bootstrap: () => Promise<void>
   refreshCloudflared: () => Promise<void>
-  refreshAuth: () => Promise<void>
   refreshProfiles: () => Promise<void>
   refreshTunnelStatus: () => Promise<void>
   refreshWslHostIp: () => Promise<void>
@@ -109,13 +113,20 @@ type AppState = PersistedSlice & {
   addProxyItem: (item: Omit<ProxyItem, 'id' | 'portStatus' | 'dnsStatus'>) => Promise<void>
   updateProxyItem: (id: string, patch: Partial<ProxyItem>) => Promise<void>
   removeProxyItem: (id: string) => Promise<void>
-  createProfile: (
+  createProfileSimple: (
     name: string,
-    tunnelName: string,
+    token: string,
+    reuseTokenFromProfileId: string | null,
+    domain: string,
     wslHost: boolean,
-    createTunnel: boolean,
   ) => Promise<void>
-  updateActiveProfile: (patch: { name?: string; wslHost?: boolean }) => Promise<void>
+  updateActiveProfile: (patch: {
+    name?: string
+    wslHost?: boolean
+    accountId?: string | null
+    zoneId?: string | null
+    zoneName?: string | null
+  }) => Promise<void>
   deleteProfile: (id: string) => Promise<void>
 }
 
@@ -131,8 +142,6 @@ export const useAppStore = create<AppState>()(
       profiles: [],
       tunnelStatus: 'idle',
       tunnelPid: null,
-      isAuthenticated: false,
-      certPath: null,
       cloudflaredPath: null,
       cloudflaredInstalled: false,
       cloudflaredVersion: null,
@@ -140,6 +149,7 @@ export const useAppStore = create<AppState>()(
       minimizeToTray: false,
       trayHintShown: false,
       closeChoiceMade: false,
+      newProfileDialogOpen: false,
       config: null,
       configRaw: '',
       configPath: null,
@@ -147,6 +157,7 @@ export const useAppStore = create<AppState>()(
       logs: [],
 
       setTheme: (theme) => set({ theme }),
+      setNewProfileDialogOpen: (v) => set({ newProfileDialogOpen: v }),
 
       setActiveProfile: async (activeProfileId) => {
         set({ activeProfileId })
@@ -178,7 +189,6 @@ export const useAppStore = create<AppState>()(
         if (!isTauri()) return
         await get().refreshPrefs()
         await get().refreshCloudflared()
-        await get().refreshAuth()
         await get().refreshWslHostIp()
         await get().refreshProfiles()
         const id = get().activeProfileId
@@ -288,23 +298,6 @@ export const useAppStore = create<AppState>()(
             level: 'error',
             source: 'cloudflared',
             message: `cloudflared_check failed: ${String(e)}`,
-          })
-        }
-      },
-
-      refreshAuth: async () => {
-        if (!isTauri()) return
-        try {
-          const status = await tauri.authCheck()
-          set({
-            isAuthenticated: status.authenticated,
-            certPath: status.certPath ?? null,
-          })
-        } catch (e) {
-          get().appendLog({
-            level: 'error',
-            source: 'auth',
-            message: `auth_check failed: ${String(e)}`,
           })
         }
       },
@@ -576,14 +569,21 @@ export const useAppStore = create<AppState>()(
         await get().saveProxyItems()
       },
 
-      createProfile: async (name, tunnelName, wslHost, createTunnel) => {
+      createProfileSimple: async (
+        name,
+        token,
+        reuseTokenFromProfileId,
+        domain,
+        wslHost,
+      ) => {
         if (!isTauri()) return
         try {
-          const profile = await tauri.profilesCreate(
+          const profile = await tauri.profilesCreateSimple(
             name,
-            tunnelName,
+            token,
+            reuseTokenFromProfileId,
+            domain,
             wslHost,
-            createTunnel,
           )
           await get().refreshProfiles()
           await get().setActiveProfile(profile.id)
@@ -591,7 +591,7 @@ export const useAppStore = create<AppState>()(
           get().appendLog({
             level: 'error',
             source: 'profiles',
-            message: `profiles_create failed: ${String(e)}`,
+            message: `profiles_create_simple failed: ${String(e)}`,
           })
           throw e
         }

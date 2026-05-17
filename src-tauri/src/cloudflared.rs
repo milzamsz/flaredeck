@@ -14,6 +14,20 @@ pub fn cert_path() -> AppResult<PathBuf> {
     Ok(cloudflared_dir()?.join("cert.pem"))
 }
 
+/// Cert to use for a profile. Today it's always the global cert at
+/// `~/.cloudflared/cert.pem` (created via `cloudflared tunnel login`).
+/// The `Profile.cert_path` field is reserved for a future per-profile
+/// override but isn't surfaced in the UI; if set, it wins.
+pub fn effective_cert_path(profile: &crate::types::Profile) -> AppResult<PathBuf> {
+    if let Some(p) = profile.cert_path.as_deref().filter(|s| !s.trim().is_empty()) {
+        let per = PathBuf::from(p);
+        if per.exists() {
+            return Ok(per);
+        }
+    }
+    cert_path()
+}
+
 pub fn flaredeck_index_path() -> AppResult<PathBuf> {
     Ok(cloudflared_dir()?.join("flaredeck.json"))
 }

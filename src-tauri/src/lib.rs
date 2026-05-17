@@ -1,6 +1,8 @@
+mod cf_api;
 mod cloudflared;
 mod commands;
 mod error;
+mod secrets;
 mod state;
 mod types;
 
@@ -83,6 +85,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(RuntimeState::new())
         .manage(PrefsState::default())
         .setup(|app| {
@@ -167,12 +171,7 @@ pub fn run() {
             commands::tunnel::tunnel_start,
             commands::tunnel::tunnel_stop,
             commands::tunnel::tunnel_restart,
-            commands::tunnel::tunnel_list,
             commands::tunnel::tunnel_route_dns,
-            commands::tunnel::tunnel_create,
-            commands::auth::auth_check,
-            commands::auth::auth_login,
-            commands::auth::auth_logout,
             commands::config::config_get,
             commands::config::config_save,
             commands::network::network_check_port,
@@ -180,10 +179,15 @@ pub fn run() {
             commands::shell::shell_open_external,
             commands::shell::shell_open_path,
             commands::profiles::profiles_list,
-            commands::profiles::profiles_create,
             commands::profiles::profiles_update,
             commands::profiles::profiles_delete,
             commands::profiles::profiles_set_active,
+            commands::profiles::profiles_set_token,
+            commands::profiles::profiles_clear_token,
+            commands::profiles::profiles_verify_token,
+            commands::profiles::profiles_create_simple,
+            commands::cf::cf_route_dns,
+            commands::cf::cf_lookup_zone,
             commands::wsl::wsl_host_ip,
             commands::prefs::prefs_get,
             commands::prefs::prefs_set_minimize_to_tray,
