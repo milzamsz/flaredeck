@@ -118,9 +118,9 @@ GitHub → Actions → Release → **Run workflow** → enter the tag name.
 1. **GitHub Releases page** at
    `https://github.com/milzamsz/flaredeck/releases` should show the new tag
    with .exe, .dmg, .AppImage, .deb assets attached.
-2. **`https://flaredeck.com/latest.json`** should return JSON with
+2. **`https://www.flaredeck.dev/latest.json`** should return JSON with
    `"version": "X.Y.Z"` and a `platforms` map.
-3. **`https://flaredeck.com/download`** should show the right "Download for…"
+3. **`https://www.flaredeck.dev/download`** should show the right "Download for…"
    button for your OS and link to the new version's installer.
 4. **An installed FlareDeck instance** opened on the OLD version should
    show "Update available" in Settings after a few seconds. Click

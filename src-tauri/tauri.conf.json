@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "FlareDeck",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "identifier": "dev.flaredeck.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -42,7 +42,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdEOEQzMzEwMjU3QTc0MQpSV1JCcDFjQ01kUFlCeWlKTURycitqeVljZ0h0Sytyb3IwcFVtQkFLMUkxRDA4Z0o0MVJTWFdUVgo=",
       "endpoints": [
-        "https://flaredeck.com/latest.json"
+        "https://www.flaredeck.dev/latest.json"
       ]
     }
   }

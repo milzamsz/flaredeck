@@ -76,7 +76,7 @@ jobs:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: 'FlareDeck ${{ github.event.inputs.tag || github.ref_name }}'
           releaseBody: |
-            See the [download page](https://flaredeck.com/download) for installers.
+            See the [download page](https://www.flaredeck.dev/download) for installers.
 
             Signed updater bundles for each platform are attached below.
           releaseDraft: false
@@ -167,7 +167,7 @@ jobs:
         run: |
           set -e
           git config user.name "flaredeck-releaser"
-          git config user.email "releaser@flaredeck.com"
+          git config user.email "releaser@flaredeck.dev"
           if git diff --quiet apps/website/public/latest.json; then
             echo "No change to latest.json — skipping commit."
             exit 0

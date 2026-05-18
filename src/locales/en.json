@@ -116,7 +116,7 @@
   },
   "settings": {
     "updateTitle": "App updates",
-    "updateDescription": "Signed updates from flaredeck.com. Click \"Check again\" to look for a new version.",
+    "updateDescription": "Signed updates from flaredeck.dev. Click \"Check again\" to look for a new version.",
     "updateAvailable": "Update available",
     "updateUpToDate": "Up to date",
     "updateChecking": "Checking for updates…",
