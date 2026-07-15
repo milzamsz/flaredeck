@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 
@@ -23,7 +23,7 @@ export type UpdaterState =
 export function useUpdater() {
   const [state, setState] = useState<UpdaterState>({ kind: 'idle' })
 
-  const checkOnce = async () => {
+  const checkOnce = useCallback(async () => {
     if (!isTauri()) {
       setState({ kind: 'error', message: 'Updater is only available in the desktop app.' })
       return
@@ -39,7 +39,13 @@ export function useUpdater() {
     } catch (e) {
       setState({ kind: 'error', message: String(e) })
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!isTauri()) return
+    const timer = window.setTimeout(() => void checkOnce(), 0)
+    return () => window.clearTimeout(timer)
+  }, [checkOnce])
 
   const downloadAndInstall = async () => {
     if (state.kind !== 'available') return
