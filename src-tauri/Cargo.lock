@@ -1181,7 +1181,7 @@ dependencies = [
  "dirs 5.0.1",
  "hickory-resolver",
  "keyring",
- "rand 0.8.7",
+ "rand 0.10.2",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
