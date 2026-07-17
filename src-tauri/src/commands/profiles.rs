@@ -10,12 +10,7 @@ use crate::secrets;
 use crate::types::{Profile, ProfileIndex, ProfilePatch, TokenInfo};
 
 async fn load_index() -> AppResult<ProfileIndex> {
-    let path = flaredeck_index_path()?;
-    if !path.exists() {
-        return Ok(ProfileIndex::default());
-    }
-    let raw = tokio::fs::read_to_string(&path).await?;
-    Ok(serde_json::from_str(&raw).unwrap_or_default())
+    crate::application::profile_service::list().await
 }
 
 async fn save_index(index: &ProfileIndex) -> AppResult<()> {
@@ -196,10 +191,7 @@ pub async fn profiles_create_simple(
     //    Cloudflare dashboard.
     let id = Uuid::new_v4().to_string();
     let short = &id[..8];
-    let tunnel_name = format!(
-        "flaredeck-{}-{short}",
-        zone.zone_name.replace('.', "-")
-    );
+    let tunnel_name = format!("flaredeck-{}-{short}", zone.zone_name.replace('.', "-"));
     let config_path: PathBuf = cloudflared_dir()?.join(format!("{id}.yml"));
     let config_path_str = config_path.to_string_lossy().to_string();
     let (_tunnel_uuid, created_name, _cred_path) = create_tunnel_with_files(

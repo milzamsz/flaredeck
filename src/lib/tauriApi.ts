@@ -49,6 +49,91 @@ export type AppPrefs = {
   closeChoiceMade: boolean
 }
 
+export type WorkspaceTrustView = {
+  root: string
+  workspaceId: string
+  projectName: string
+  profile: string
+  executable: string
+  args: string[]
+  workingDirectory: string
+  readiness: string
+  routes: WorkspaceRouteView[]
+  environmentNames: string[]
+  environmentValues: { name: string; value: string }[]
+  lifecycle: string[]
+  capabilities: string[]
+  fingerprint: string
+  approvalState: 'trusted' | 'changed' | 'approval_required'
+  trusted: boolean
+}
+
+export type WorkspaceRouteView = {
+  hostname: string
+  origin: string
+  path?: string | null
+  mode: string
+}
+
+export type WorkspaceSessionView = {
+  id: string
+  workspaceId: string
+  profileId: string
+  state: 'stopped' | 'starting' | 'healthy' | 'failed' | 'stopping' | 'cleanup_incomplete'
+  runtimeOwnership: 'session' | 'external'
+  tunnelOwnership: 'session' | 'external_or_disabled'
+  publicUrls: string[]
+  startedAt: string
+  cleanupRequired: boolean
+}
+
+export type WorkspaceListItemView = {
+  root: string
+  workspaceId: string
+  projectName: string
+  profile: string
+  validationState: 'valid' | 'invalid'
+  approvalState: 'trusted' | 'changed' | 'approval_required'
+  trusted: boolean
+  activeSession: WorkspaceSessionView | null
+}
+
+export type WorkspaceRuntimeLog = { stream: string; line: string }
+
+export type WorkspaceAuditEventView = {
+  timestamp: string
+  operation: string
+  result: string
+  sessionId: string
+  correlationId: string
+}
+
+export type TemporaryRouteView = {
+  id: string
+  sessionId: string
+  hostname: string
+  path?: string | null
+  origin: string
+  state: 'creating' | 'active' | 'cleanup_incomplete' | 'cleaned'
+  createdAt: string
+  expiresAt: string
+  cleanupError?: string | null
+}
+
+export type WebhookEventView = {
+  id: string
+  routeId: string
+  timestamp: string
+  method: string
+  path: string
+  headers: Record<string, string>
+  contentType?: string | null
+  body?: string | null
+  bodyState: string
+  responseStatus?: number | null
+  redactionVersion: number
+}
+
 export type ProfileIndex = {
   profiles: Profile[]
   activeProfileId: string | null
@@ -93,6 +178,7 @@ export const tauri = {
   appVersion: () => invoke<string>('app_version'),
 
   cloudflaredCheck: () => invoke<CloudflaredInfo>('cloudflared_check'),
+  cloudflaredInstall: () => invoke<CloudflaredInfo>('cloudflared_install'),
 
   tunnelStatus: (profileId: string) =>
     invoke<TunnelStatus>('tunnel_status', { profileId }),
@@ -166,6 +252,30 @@ export const tauri = {
   prefsMarkTrayHintShown: () => invoke<AppPrefs>('prefs_mark_tray_hint_shown'),
   prefsSetCloseChoice: (minimizeToTray: boolean) =>
     invoke<AppPrefs>('prefs_set_close_choice', { minimizeToTray }),
+
+  workspaceInspect: (path: string) =>
+    invoke<WorkspaceTrustView>('workspace_inspect', { path }),
+  workspaceApprove: (path: string) =>
+    invoke<WorkspaceTrustView>('workspace_approve', { path }),
+  workspaceList: () => invoke<WorkspaceListItemView[]>('workspace_list'),
+  workspaceSessionStart: (workspaceId: string) =>
+    invoke<WorkspaceSessionView>('workspace_session_start', { workspaceId }),
+  workspaceSessionStatus: (workspaceId: string) =>
+    invoke<WorkspaceSessionView | null>('workspace_session_status', { workspaceId }),
+  workspaceSessionStop: (sessionId: string) =>
+    invoke<WorkspaceSessionView>('workspace_session_stop', { sessionId }),
+  workspaceSessionLogs: (sessionId: string, tail = 100) =>
+    invoke<WorkspaceRuntimeLog[]>('workspace_session_logs', { sessionId, tail }),
+  workspaceTemporaryRoutes: (sessionId: string) =>
+    invoke<TemporaryRouteView[]>('workspace_temporary_routes', { sessionId }),
+  workspaceTemporaryRoutesReconcile: () =>
+    invoke<TemporaryRouteView[]>('workspace_temporary_routes_reconcile'),
+  workspaceWebhookEvents: (routeId: string, limit = 100) =>
+    invoke<WebhookEventView[]>('workspace_webhook_events', { routeId, limit }),
+  workspaceWebhookReplay: (routeId: string, eventId: string) =>
+    invoke<number>('workspace_webhook_replay', { routeId, eventId }),
+  workspaceAudit: (workspaceId: string) =>
+    invoke<WorkspaceAuditEventView[]>('workspace_audit', { workspaceId }),
 }
 
 /**

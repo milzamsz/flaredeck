@@ -1,6 +1,6 @@
-use hickory_resolver::TokioAsyncResolver;
 use hickory_resolver::config::{ResolverConfig, ResolverOpts};
 use hickory_resolver::error::ResolveErrorKind;
+use hickory_resolver::TokioAsyncResolver;
 
 use crate::error::{AppError, AppResult};
 use crate::types::DnsLookupResult;

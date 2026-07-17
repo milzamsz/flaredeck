@@ -1,0 +1,50 @@
+version: 1
+
+project:
+  name: example-app
+  id: example-app-local
+  labels:
+    team: local-development
+
+profile:
+  name: ocloud-development
+
+runtime:
+  executable: npm
+  args:
+    - run
+    - dev
+  workingDirectory: .
+  startupTimeoutSeconds: 60
+  stopTimeoutSeconds: 10
+  crashloop:
+    maxFailures: 3
+    windowSeconds: 30
+
+ready:
+  type: http
+  url: http://127.0.0.1:5173/health
+  expectedStatus:
+    - 200
+    - 299
+  intervalMilliseconds: 500
+  timeoutSeconds: 60
+
+exposure:
+  routes:
+    - hostname: example-dev.example.com
+      service: http://127.0.0.1:5173
+      mode: persistent
+
+lifecycle:
+  startRuntime: true
+  ensureTunnel: true
+  stopRuntimeOnSessionStop: true
+  stopTunnelIfStartedBySession: true
+  removeTemporaryRoutes: true
+
+environment:
+  passthrough:
+    - NODE_ENV
+  values:
+    APP_ENV: development

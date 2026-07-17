@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "appVersion": "0.2.3",
+  "companionVersionPolicy": "exact",
+  "companions": ["flaredeck-cli", "flaredeck-mcp", "flaredeck-webhook-proxy"],
+  "stateSchemas": {
+    "profiles": 1,
+    "trustApprovals": 1,
+    "sessions": 1,
+    "temporaryRoutes": 1,
+    "webhookEvents": 1
+  },
+  "updater": {
+    "identifier": "dev.flaredeck.desktop",
+    "publicKeySha256": "7c8f38fb9fcc1d83acf08eb0819a40fa35cc0453344be8af594c89225246ebaf",
+    "endpoints": ["https://www.flaredeck.dev/latest.json"]
+  },
+  "stableArtifacts": [
+    "FlareDeck_{version}_x64-setup.exe",
+    "FlareDeck_{version}_universal.dmg",
+    "FlareDeck_{version}_amd64.AppImage",
+    "FlareDeck_{version}_amd64.deb"
+  ]
+}

@@ -4,10 +4,10 @@ End-to-end flow for shipping a new version of FlareDeck:
 
 1. Generate the updater signing keypair (one time).
 2. Wire the public key into the repo and the private key into GitHub Actions secrets.
-3. Tag a release. GitHub Actions builds binaries for Windows / macOS / Linux,
-   uploads them to GitHub Releases, and pushes a fresh `latest.json` into
-   flaredeck-web. Installed users see "Update available" the next time they
-   open Settings.
+3. Tag a release. GitHub Actions builds the desktop and version-matched
+   companions for Windows / macOS / Linux in a draft release, verifies every
+   platform, publishes checksums, and only then pushes a fresh `latest.json`
+   into flaredeck-web and publishes the release.
 
 ## One-time setup
 
@@ -78,16 +78,18 @@ differs from `milzamsz/flaredeck`.
 
 ### 1. Bump the version
 
-The release workflow uses whatever tag you push as the version. Tauri also
-embeds the version from two places — keep them in sync:
+The release workflow rejects a tag unless it matches every machine-checked
+version source. Keep these in sync:
 
 ```bash
 # 1. Bump src-tauri/tauri.conf.json -> "version"
 # 2. Bump src-tauri/Cargo.toml -> [package] version
-# 3. Bump package.json -> "version"
+# 3. Bump package.json and package-lock.json -> root "version"
+# 4. Bump docs/specs/release-compatibility.json -> "appVersion"
 ```
 
-Commit the three-file bump as `release: vX.Y.Z` (no tag yet).
+Run `npm run release:verify`, then commit the version bump as
+`release: vX.Y.Z` (no tag yet).
 
 ### 2. Tag and push
 
@@ -97,15 +99,16 @@ git push origin vX.Y.Z
 ```
 
 The push triggers `.github/workflows/release.yml`. It runs three platform
-build jobs in parallel (~10-20 min each), then a `manifest` job that:
+build jobs in parallel, then a `manifest` job that:
 
-1. Downloads the per-platform `latest*.json` files tauri-action just uploaded
-   to the release.
-2. Merges them into a single `latest.json`.
-3. Commits that file into `flaredeck-web/public/latest.json` and pushes.
-4. Your web host (Vercel/Cloudflare Pages/etc.) auto-deploys from the new
-   commit. Installed FlareDeck users see the update on their next Settings
-   visit.
+1. Requires every platform build and companion smoke test to pass.
+2. Downloads and merges the per-platform updater manifests.
+3. Generates and uploads `SHA256SUMS.txt`.
+4. Commits `latest.json` into flaredeck-web and pushes.
+5. Publishes the verified GitHub draft release.
+
+If any platform, signing, checksum, or manifest step fails, the release stays
+draft and installed users are not offered a partial update.
 
 ### 3. (Optional) Trigger manually
 

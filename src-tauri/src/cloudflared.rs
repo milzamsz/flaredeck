@@ -19,7 +19,11 @@ pub fn cert_path() -> AppResult<PathBuf> {
 /// The `Profile.cert_path` field is reserved for a future per-profile
 /// override but isn't surfaced in the UI; if set, it wins.
 pub fn effective_cert_path(profile: &crate::types::Profile) -> AppResult<PathBuf> {
-    if let Some(p) = profile.cert_path.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(p) = profile
+        .cert_path
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         let per = PathBuf::from(p);
         if per.exists() {
             return Ok(per);
@@ -90,4 +94,43 @@ pub async fn cloudflared_version(path: &std::path::Path) -> Option<String> {
 
 pub fn ensure_cloudflared() -> AppResult<PathBuf> {
     resolve_cloudflared_path().ok_or(AppError::CloudflaredMissing)
+}
+
+pub fn install_path() -> AppResult<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let base = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .or_else(|| dirs::home_dir().map(|p| p.join("AppData/Local")))
+            .ok_or(AppError::NoHomeDir)?;
+        return Ok(base.join("cloudflared/cloudflared.exe"));
+    }
+
+    Ok(home_dir()?.join(".local/bin/cloudflared"))
+}
+
+pub fn release_asset() -> AppResult<&'static str> {
+    let asset = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => "cloudflared-windows-amd64.exe",
+        ("macos", "x86_64") => "cloudflared-darwin-amd64.tgz",
+        ("macos", "aarch64") => "cloudflared-darwin-arm64.tgz",
+        ("linux", "x86_64") => "cloudflared-linux-amd64",
+        ("linux", "aarch64") => "cloudflared-linux-arm64",
+        _ => {
+            return Err(AppError::Other(
+                "unsupported platform for cloudflared installer".into(),
+            ))
+        }
+    };
+    Ok(asset)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::release_asset;
+
+    #[test]
+    fn release_asset_is_official_cloudflare_binary() {
+        assert!(release_asset().unwrap().starts_with("cloudflared-"));
+    }
 }

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Cog,
   FileText,
+  FolderGit2,
   LayoutDashboard,
   Plus,
   ShieldCheck,
@@ -56,6 +57,7 @@ export function AppSidebar() {
 
   const items: Item[] = [
     { to: '/', label: t('nav.dashboard'), Icon: LayoutDashboard },
+    { to: '/workspaces', label: t('nav.workspaces'), Icon: FolderGit2 },
     { to: '/config', label: t('nav.config'), Icon: FileText },
     { to: '/settings', label: t('nav.settings'), Icon: Cog },
   ]

@@ -6,4 +6,5 @@ pub mod prefs;
 pub mod profiles;
 pub mod shell;
 pub mod tunnel;
+pub mod workspace;
 pub mod wsl;

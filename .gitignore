@@ -12,6 +12,8 @@ dist
 dist-ssr
 dist-windows
 src-tauri/target
+src-tauri/binaries
+flaredeck-ai-development-enhancement-pack.zip
 *.local
 
 # Editor directories and files

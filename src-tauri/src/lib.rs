@@ -1,10 +1,11 @@
+pub mod application;
 mod cf_api;
-mod cloudflared;
+pub mod cloudflared;
 mod commands;
-mod error;
+pub mod error;
 mod secrets;
 mod state;
-mod types;
+pub mod types;
 
 use std::time::Duration;
 
@@ -167,6 +168,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_version,
             commands::tunnel::cloudflared_check,
+            commands::tunnel::cloudflared_install,
             commands::tunnel::tunnel_status,
             commands::tunnel::tunnel_start,
             commands::tunnel::tunnel_stop,
@@ -193,6 +195,18 @@ pub fn run() {
             commands::prefs::prefs_set_minimize_to_tray,
             commands::prefs::prefs_mark_tray_hint_shown,
             commands::prefs::prefs_set_close_choice,
+            commands::workspace::workspace_inspect,
+            commands::workspace::workspace_approve,
+            commands::workspace::workspace_list,
+            commands::workspace::workspace_session_start,
+            commands::workspace::workspace_session_status,
+            commands::workspace::workspace_session_stop,
+            commands::workspace::workspace_session_logs,
+            commands::workspace::workspace_temporary_routes,
+            commands::workspace::workspace_temporary_routes_reconcile,
+            commands::workspace::workspace_webhook_events,
+            commands::workspace::workspace_webhook_replay,
+            commands::workspace::workspace_audit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlareDeck");

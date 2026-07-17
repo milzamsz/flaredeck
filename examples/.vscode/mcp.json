@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "flaredeck": {
+      "type": "stdio",
+      "command": "flaredeck-mcp",
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

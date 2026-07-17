@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flaredeck.dev/schemas/workspace-v1.json",
+  "title": "FlareDeck Workspace Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "project", "profile", "runtime", "ready", "exposure"],
+  "properties": {
+    "version": { "const": 1 },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "maxLength": 200 },
+          "maxProperties": 20
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executable"],
+      "properties": {
+        "executable": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "args": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 2000 },
+          "maxItems": 100,
+          "default": []
+        },
+        "workingDirectory": { "type": "string", "minLength": 1, "maxLength": 1000, "default": "." },
+        "startupTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 900, "default": 60 },
+        "stopTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 120, "default": 10 },
+        "crashloop": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxFailures": { "type": "integer", "minimum": 1, "maximum": 20, "default": 3 },
+            "windowSeconds": { "type": "integer", "minimum": 1, "maximum": 600, "default": 30 }
+          }
+        }
+      }
+    },
+    "ready": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "host", "port"],
+          "properties": {
+            "type": { "const": "tcp" },
+            "host": { "type": "string", "enum": ["127.0.0.1", "localhost", "::1"] },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "intervalMilliseconds": { "type": "integer", "minimum": 100, "maximum": 10000, "default": 500 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 900, "default": 60 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "url"],
+          "properties": {
+            "type": { "const": "http" },
+            "url": { "type": "string", "format": "uri", "maxLength": 2000 },
+            "expectedStatus": {
+              "type": "array",
+              "prefixItems": [
+                { "type": "integer", "minimum": 100, "maximum": 599 },
+                { "type": "integer", "minimum": 100, "maximum": 599 }
+              ],
+              "items": false,
+              "default": [200, 299]
+            },
+            "intervalMilliseconds": { "type": "integer", "minimum": 100, "maximum": 10000, "default": 500 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 900, "default": 60 }
+          }
+        }
+      ]
+    },
+    "exposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["routes"],
+      "properties": {
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["hostname", "service"],
+            "properties": {
+              "hostname": { "type": "string", "minLength": 1, "maxLength": 253 },
+              "service": { "type": "string", "format": "uri", "maxLength": 2000 },
+              "path": { "type": "string", "maxLength": 500 },
+              "mode": { "type": "string", "enum": ["persistent", "temporary"], "default": "persistent" }
+            }
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startRuntime": { "type": "boolean", "default": true },
+        "ensureTunnel": { "type": "boolean", "default": true },
+        "stopRuntimeOnSessionStop": { "type": "boolean", "default": true },
+        "stopTunnelIfStartedBySession": { "type": "boolean", "default": true },
+        "removeTemporaryRoutes": { "type": "boolean", "default": true }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "passthrough": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "uniqueItems": true,
+          "maxItems": 100
+        },
+        "values": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "additionalProperties": { "type": "string", "maxLength": 2000 },
+          "maxProperties": 100
+        }
+      }
+    }
+  }
+}

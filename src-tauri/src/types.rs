@@ -112,3 +112,106 @@ pub struct DnsLookupResult {
     pub addresses: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRouteView {
+    pub hostname: String,
+    pub origin: String,
+    pub path: Option<String>,
+    pub mode: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceEnvironmentLiteralView {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTrustView {
+    pub root: String,
+    pub workspace_id: String,
+    pub project_name: String,
+    pub profile: String,
+    pub executable: String,
+    pub args: Vec<String>,
+    pub working_directory: String,
+    pub readiness: String,
+    pub routes: Vec<WorkspaceRouteView>,
+    pub environment_names: Vec<String>,
+    pub environment_values: Vec<WorkspaceEnvironmentLiteralView>,
+    pub lifecycle: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub fingerprint: String,
+    pub approval_state: String,
+    pub trusted: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceSessionView {
+    pub id: String,
+    pub workspace_id: String,
+    pub profile_id: String,
+    pub state: String,
+    pub runtime_ownership: String,
+    pub tunnel_ownership: String,
+    pub public_urls: Vec<String>,
+    pub started_at: String,
+    pub cleanup_required: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceListItemView {
+    pub root: String,
+    pub workspace_id: String,
+    pub project_name: String,
+    pub profile: String,
+    pub validation_state: String,
+    pub approval_state: String,
+    pub trusted: bool,
+    pub active_session: Option<WorkspaceSessionView>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAuditEventView {
+    pub timestamp: String,
+    pub operation: String,
+    pub result: String,
+    pub session_id: String,
+    pub correlation_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TemporaryRouteView {
+    pub id: String,
+    pub session_id: String,
+    pub hostname: String,
+    pub path: Option<String>,
+    pub origin: String,
+    pub state: String,
+    pub created_at: String,
+    pub expires_at: String,
+    pub cleanup_error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WebhookEventView {
+    pub id: String,
+    pub route_id: String,
+    pub timestamp: String,
+    pub method: String,
+    pub path: String,
+    pub headers: std::collections::BTreeMap<String, String>,
+    pub content_type: Option<String>,
+    pub body: Option<String>,
+    pub body_state: String,
+    pub response_status: Option<u16>,
+    pub redaction_version: u8,
+}

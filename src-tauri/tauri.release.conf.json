@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "externalBin": [
+      "binaries/flaredeck-cli",
+      "binaries/flaredeck-mcp",
+      "binaries/flaredeck-webhook-proxy"
+    ]
+  }
+}

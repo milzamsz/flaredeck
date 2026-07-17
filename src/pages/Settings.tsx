@@ -44,6 +44,7 @@ export default function SettingsPage() {
   const activeProfileId = useAppStore((s) => s.activeProfileId)
   const setStoreTheme = useAppStore((s) => s.setTheme)
   const refreshCloudflared = useAppStore((s) => s.refreshCloudflared)
+  const [installingCloudflared, setInstallingCloudflared] = useState(false)
   const refreshWslHostIp = useAppStore((s) => s.refreshWslHostIp)
   const updateActiveProfile = useAppStore((s) => s.updateActiveProfile)
   const deleteProfile = useAppStore((s) => s.deleteProfile)
@@ -89,13 +90,21 @@ export default function SettingsPage() {
             {!cloudflaredInstalled && (
               <Button
                 size="sm"
-                onClick={() =>
-                  void tauri.shellOpenExternal(
-                    'https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/',
-                  )
-                }
+                disabled={installingCloudflared}
+                onClick={async () => {
+                  setInstallingCloudflared(true)
+                  try {
+                    await tauri.cloudflaredInstall()
+                    await refreshCloudflared()
+                    toast.success(t('settings.installSuccess'))
+                  } catch (e) {
+                    toast.error(t('settings.installFailed', { message: String(e) }))
+                  } finally {
+                    setInstallingCloudflared(false)
+                  }
+                }}
               >
-                <ExternalLink className="size-4" /> {t('settings.install')}
+                <Download className="size-4" /> {t('settings.install')}
               </Button>
             )}
           </div>
