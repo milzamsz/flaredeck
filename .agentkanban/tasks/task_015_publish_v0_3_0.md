@@ -52,3 +52,9 @@ Working in `task_015_publish_v0_3_0.md`. PR CI exposed an environment-dependent 
 Working in `task_015_publish_v0_3_0.md`. PR #11 passed Verify on `f4a86c9` and merged into `main` as `9ebee43`. Release branch `release/v0.3.0` now carries only the version/release-note changes; the release verifier also guards the FlareDeck entry in `Cargo.lock`.
 
 ### user
+
+### agent
+
+Working in `task_015_publish_v0_3_0.md`. The complete `0.3.0` version contract passes `bash scripts/verify.sh` locally and is proposed in PR #12: https://github.com/milzamsz/flaredeck/pull/12. No tag exists yet; it remains gated on this PR's CI and merge commit.
+
+### user
