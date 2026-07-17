@@ -13,7 +13,7 @@ const compatibility = json('docs/specs/release-compatibility.json')
 const cargo = readFileSync(join(root, 'src-tauri', 'Cargo.toml'), 'utf8')
 const cargoVersion = cargo.match(/^version = "([^"]+)"/m)?.[1]
 const cargoLock = readFileSync(join(root, 'src-tauri', 'Cargo.lock'), 'utf8')
-const cargoLockVersion = cargoLock.match(/\[\[package\]\]\nname = "flaredeck"\nversion = "([^"]+)"/)?.[1]
+const cargoLockVersion = cargoLock.match(/\[\[package\]\]\r?\nname = "flaredeck"\r?\nversion = "([^"]+)"/)?.[1]
 const versions = [
   pkg.version,
   lock.version,

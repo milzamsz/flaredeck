@@ -58,3 +58,9 @@ Working in `task_015_publish_v0_3_0.md`. PR #11 passed Verify on `f4a86c9` and m
 Working in `task_015_publish_v0_3_0.md`. The complete `0.3.0` version contract passes `bash scripts/verify.sh` locally and is proposed in PR #12: https://github.com/milzamsz/flaredeck/pull/12. No tag exists yet; it remains gated on this PR's CI and merge commit.
 
 ### user
+
+### agent
+
+Working in `task_015_publish_v0_3_0.md`. PR #12 passed CI and merged as `b5927b7`; annotated `v0.3.0` triggered release run 29560184350. Windows failed before packaging because the new `Cargo.lock` guard assumed LF-only checkout text. No GitHub release was created; the failed matrix was canceled. A CRLF-compatible guard is being verified before replacing the unpublished failed tag.
+
+### user
