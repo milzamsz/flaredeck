@@ -11,3 +11,6 @@
 - [x] Restore universal macOS companion binaries at the tauri target bundle path expected by the Tauri builder.
 - [x] Re-run the release workflow and verify universal macOS publishes successfully.
 - [ ] Fix Windows packaging blocker (`tauri-action` `light.exe`) and complete all-platform publish.
+  - [x] Implemented a Windows-only release workflow workaround to skip WiX and build only NSIS (`-b nsis`) in
+    `Build and publish` while preserving updater JSON preference for NSIS artifacts.
+  - [ ] Validate via new workflow rerun that Windows publish now succeeds and the release can publish.

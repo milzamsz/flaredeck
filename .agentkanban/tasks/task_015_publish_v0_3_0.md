@@ -112,3 +112,19 @@ Evidence collected:
 Next action: re-run `Release` workflow on `v0.3.0` and confirm both Windows/macOS packaging complete and release publishes.
 
 ### user
+
+### agent
+
+Working on `task_015_publish_v0_3_0.md`. I updated `.github/workflows/release.yml` with a Windows-only packaging adjustment to avoid WiX:
+
+- Windows now appends `-b nsis` to the Tauri build args in the release workflow (`args: --config ... -b nsis` for Windows matrix entries).
+- `updaterJsonPreferNsis: true` is enabled for release asset selection.
+
+Validation from local checks:
+
+- `npm run release:verify`
+- `npm run lint`
+
+Both checks pass. Next action is a fresh `Release` workflow rerun (`tag=v0.3.0`) to confirm Windows `Build and publish` now succeeds and the release can be published.
+
+### user

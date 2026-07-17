@@ -24,14 +24,17 @@ jobs:
             os: macos-latest
             target: universal-apple-darwin
             args: --target universal-apple-darwin
+            windowsBundleArg: ""
           - label: Linux
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             args: ''
+            windowsBundleArg: ""
           - label: Windows
             os: windows-latest
             target: x86_64-pc-windows-msvc
             args: ''
+            windowsBundleArg: -b nsis
 
     runs-on: ${{ matrix.os }}
 
@@ -87,6 +90,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          updaterJsonPreferNsis: true
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: 'FlareDeck ${{ github.event.inputs.tag || github.ref_name }}'
           releaseBody: |
@@ -97,7 +101,7 @@ jobs:
             See `docs/implementation/NEXT-RELEASE-NOTES.md` in the tagged source for feature, migration, rollback, and known-platform notes.
           releaseDraft: true
           prerelease: false
-          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }} ${{ matrix.windowsBundleArg }}
 
   manifest:
     name: Update latest.json on flaredeck-web
