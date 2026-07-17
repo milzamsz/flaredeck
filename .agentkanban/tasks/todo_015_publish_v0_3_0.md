@@ -3,5 +3,10 @@
 - [x] Audit untracked files, secrets, diff, and release prerequisites.
 - [x] Commit, push, open the feature PR, and monitor verification.
 - [x] Merge the feature PR and create the `0.3.0` version-bump PR.
-- [ ] Merge the verified version bump and push annotated `v0.3.0`.
+- [x] Merge the verified version bump and push annotated `v0.3.0`.
 - [ ] Monitor release artifacts, signatures, checksums, updater metadata, and platform checks.
+
+# Iteration 2
+
+- [x] Restore universal macOS companion binaries at the tauri target bundle path expected by the Tauri builder.
+- [ ] Re-run the release workflow and verify all platform jobs publish `v0.3.0` release artifacts.

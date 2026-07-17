@@ -38,6 +38,7 @@ if (requested === 'universal-apple-darwin') {
     chmodSync(destination, 0o755)
 
     const releaseDestination = join(root, 'src-tauri', 'target', requested, 'release', companion)
+    mkdirSync(join(root, 'src-tauri', 'target', requested, 'release'), { recursive: true })
     copyFileSync(destination, releaseDestination)
     chmodSync(releaseDestination, 0o755)
   }
