@@ -12,12 +12,15 @@ const releaseConfig = json('src-tauri/tauri.release.conf.json')
 const compatibility = json('docs/specs/release-compatibility.json')
 const cargo = readFileSync(join(root, 'src-tauri', 'Cargo.toml'), 'utf8')
 const cargoVersion = cargo.match(/^version = "([^"]+)"/m)?.[1]
+const cargoLock = readFileSync(join(root, 'src-tauri', 'Cargo.lock'), 'utf8')
+const cargoLockVersion = cargoLock.match(/\[\[package\]\]\nname = "flaredeck"\nversion = "([^"]+)"/)?.[1]
 const versions = [
   pkg.version,
   lock.version,
   lock.packages?.['']?.version,
   tauri.version,
   cargoVersion,
+  cargoLockVersion,
   compatibility.appVersion,
 ]
 if (new Set(versions).size !== 1) throw new Error(`release versions differ: ${versions.join(', ')}`)

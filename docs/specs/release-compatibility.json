@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "appVersion": "0.2.3",
+  "appVersion": "0.3.0",
   "companionVersionPolicy": "exact",
   "companions": ["flaredeck-cli", "flaredeck-mcp", "flaredeck-webhook-proxy"],
   "stateSchemas": {

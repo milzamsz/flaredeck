@@ -1,4 +1,4 @@
-# Next FlareDeck Release Notes
+# FlareDeck 0.3.0 Release Notes
 
 ## Highlights
 
