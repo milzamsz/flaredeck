@@ -13,6 +13,22 @@ dependsOn: [task_014_phase_9_release_hardening]
 
 ### user
 
+### agent
+
+I re-ran Release as `workflow_dispatch` with `tag=v0.3.0` (run `29565413118`) after committing `b9b593c` (`fix: ensure universal release target directory exists`).
+
+Outcome:
+
+- `Build macOS (universal)` now completes through `Build and publish` and uploads artifacts to draft `v0.3.0`.
+- `Build Linux` completes successfully.
+- `Build Windows` still fails in `Build and publish` with the existing WiX signer issue: `failed to run .../tauri/WixTools314/light.exe`.
+
+Evidence:
+- `gh run view 29565413118` (run conclusion = `failure`)
+- `gh api repos/milzamsz/flaredeck/actions/jobs/87836800669/logs` (Windows failure at `failed to bundle project: failed to run ...\\light.exe`)
+- `gh api repos/milzamsz/flaredeck/actions/jobs/87836800716/logs` (macOS completed successfully, assets uploaded)
+
+Current status: universal macOS placement fix is validated; remaining blocker is Windows packaging.
 Approved committing the completed work, pushing a branch, opening and merging verified PRs, bumping the version, tagging, and running the cross-platform release workflow.
 
 ### agent

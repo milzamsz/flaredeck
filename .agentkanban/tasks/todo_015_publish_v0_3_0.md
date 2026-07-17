@@ -9,4 +9,5 @@
 # Iteration 2
 
 - [x] Restore universal macOS companion binaries at the tauri target bundle path expected by the Tauri builder.
-- [ ] Re-run the release workflow and verify all platform jobs publish `v0.3.0` release artifacts.
+- [x] Re-run the release workflow and verify universal macOS publishes successfully.
+- [ ] Fix Windows packaging blocker (`tauri-action` `light.exe`) and complete all-platform publish.
