@@ -8,7 +8,8 @@
     "dev": "vite",
     "tauri": "tauri",
     "desktop": "tauri dev",
-    "desktop:build": "tauri build",
+    "desktop:build": "node scripts/prepare-sidecars.mjs && tauri build --config src-tauri/tauri.release.conf.json",
+    "release:verify": "node scripts/verify-release.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

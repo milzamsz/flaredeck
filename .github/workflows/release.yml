@@ -63,6 +63,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify release contract
+        run: npm run release:verify
+
+      - name: Verify tag matches packaged version
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="v$(node -p "require('./package.json').version")"
+          actual="${{ github.event.inputs.tag || github.ref_name }}"
+          test "$actual" = "$expected"
+
+      - name: Build version-matched companions
+        run: node scripts/prepare-sidecars.mjs ${{ matrix.target }}
+
+      - name: Smoke companion binaries
+        run: node scripts/smoke-sidecars.mjs ${{ matrix.target }}
+
       - name: Build and publish
         uses: tauri-apps/tauri-action@v0
         env:
@@ -75,20 +92,18 @@ jobs:
           releaseBody: |
             See the [download page](https://www.flaredeck.dev/download) for installers.
 
-            Signed updater bundles for each platform are attached below.
-          releaseDraft: false
+            This release installs the desktop, CLI, MCP server, and webhook proxy as one version-matched unit. Signed updater bundles and SHA-256 checksums are attached below.
+
+            See `docs/implementation/NEXT-RELEASE-NOTES.md` in the tagged source for feature, migration, rollback, and known-platform notes.
+          releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          args: --config src-tauri/tauri.release.conf.json ${{ matrix.args }}
 
   manifest:
     name: Update latest.json on flaredeck-web
-    # Run as long as the workflow wasn't cancelled. Even if some platform
-    # builds failed (e.g. macOS missing certs, Linux apt deps drift),
-    # we still want to publish the platforms that DID ship — a
-    # Windows-only release is still useful, and installed users on any
-    # other OS just stay on their current version until the next tag.
+    # Fail closed: the draft is published only after every supported target
+    # built and smoked the same desktop/companion version.
     needs: build
-    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag
@@ -143,6 +158,23 @@ jobs:
             echo "has_manifest=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Generate and upload release checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --dir release-assets
+          find release-assets -maxdepth 1 -type f ! -name 'SHA256SUMS.txt' -print0 \
+            | sort -z \
+            | xargs -0 -r sha256sum \
+            | sed 's#release-assets/##' > SHA256SUMS.txt
+          test -s SHA256SUMS.txt
+          gh release upload "${{ steps.tag.outputs.tag }}" SHA256SUMS.txt \
+            --repo "${{ github.repository }}" --clobber
+
       - name: Checkout flaredeck-web
         if: steps.merge.outputs.has_manifest == 'true'
         uses: actions/checkout@v4
@@ -172,3 +204,9 @@ jobs:
           git add apps/website/public/latest.json
           git commit -m "release: update latest.json for ${{ steps.tag.outputs.tag }}"
           git push
+
+      - name: Publish verified draft
+        if: steps.merge.outputs.has_manifest == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ steps.tag.outputs.tag }}" --repo "${{ github.repository }}" --draft=false

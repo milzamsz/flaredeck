@@ -5,10 +5,23 @@ description = "A local development publish manager for Cloudflare Tunnel"
 authors = ["FlareDeck contributors"]
 edition = "2021"
 license = "MIT"
+default-run = "flaredeck"
 
 [lib]
 name = "flaredeck_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "flaredeck-cli"
+path = "src/bin/flaredeck-cli.rs"
+
+[[bin]]
+name = "flaredeck-mcp"
+path = "src/bin/flaredeck-mcp.rs"
+
+[[bin]]
+name = "flaredeck-webhook-proxy"
+path = "src/bin/flaredeck-webhook-proxy.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -35,7 +48,7 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 thiserror = "1"
-tokio = { version = "1", features = ["fs", "net", "process", "time", "macros", "io-util"] }
+tokio = { version = "1", features = ["fs", "net", "process", "time", "macros", "io-util", "io-std", "sync"] }
 uuid = { version = "1", features = ["v4"] }
 which = "6"
 

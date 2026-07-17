@@ -136,7 +136,9 @@ fn write_file(f: &SecretsFile) -> AppResult<()> {
 #[cfg(unix)]
 fn set_owner_only_perms(path: &std::path::Path) -> AppResult<()> {
     use std::os::unix::fs::PermissionsExt;
-    let mut perms = std::fs::metadata(path).map_err(AppError::from)?.permissions();
+    let mut perms = std::fs::metadata(path)
+        .map_err(AppError::from)?
+        .permissions();
     perms.set_mode(0o600);
     std::fs::set_permissions(path, perms).map_err(AppError::from)?;
     Ok(())
@@ -162,8 +164,7 @@ fn file_store(profile_id: &str, token: &str) -> AppResult<()> {
 
     let mut f = read_file()?;
     f.v = FILE_VERSION;
-    f.entries
-        .insert(profile_id.to_string(), B64.encode(&blob));
+    f.entries.insert(profile_id.to_string(), B64.encode(&blob));
     write_file(&f)
 }
 

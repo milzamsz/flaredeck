@@ -6,6 +6,7 @@ import Dashboard from '@/pages/Dashboard'
 
 const ConfigPage = lazy(() => import('@/pages/Config'))
 const SettingsPage = lazy(() => import('@/pages/Settings'))
+const WorkspacesPage = lazy(() => import('@/pages/Workspaces'))
 
 function RouteFallback() {
   return (
@@ -20,6 +21,14 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { path: '/', element: <Dashboard /> },
+      {
+        path: '/workspaces',
+        element: (
+          <Suspense fallback={<RouteFallback />}>
+            <WorkspacesPage />
+          </Suspense>
+        ),
+      },
       {
         path: '/config',
         element: (

@@ -6,15 +6,29 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::error::{AppError, AppResult};
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AppPrefs {
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub minimize_to_tray: bool,
     #[serde(default)]
     pub tray_hint_shown: bool,
     #[serde(default)]
     pub close_choice_made: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for AppPrefs {
+    fn default() -> Self {
+        Self {
+            minimize_to_tray: true,
+            tray_hint_shown: false,
+            close_choice_made: true,
+        }
+    }
 }
 
 #[derive(Default)]

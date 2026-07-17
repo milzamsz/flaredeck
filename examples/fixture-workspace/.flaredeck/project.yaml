@@ -1,0 +1,26 @@
+version: 1
+project:
+  name: FlareDeck integration fixture
+  id: flaredeck-integration-fixture
+profile:
+  id: replace-with-existing-profile
+runtime:
+  executable: node
+  args: [server.js]
+  workingDirectory: .
+ready:
+  type: http
+  url: http://127.0.0.1:3210/health
+  expectedStatus: [200, 299]
+  timeoutSeconds: 10
+exposure:
+  routes:
+    - hostname: fixture.example.test
+      service: http://127.0.0.1:3210
+      mode: persistent
+lifecycle:
+  startRuntime: true
+  ensureTunnel: false
+  stopRuntimeOnSessionStop: true
+  stopTunnelIfStartedBySession: true
+  removeTemporaryRoutes: false

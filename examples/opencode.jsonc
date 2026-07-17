@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "mcp": {
+    "flaredeck": {
+      "type": "local",
+      "command": ["flaredeck-mcp"],
+      "cwd": ".",
+      "enabled": true,
+      "timeout": 10000
+    }
+  },
+
+  // OpenCode prefixes MCP tool names with the server name. Raw tool
+  // `session_start` is therefore exposed as `flaredeck_session_start`.
+  // Disable FlareDeck tools globally and enable them only for the agent
+  // responsible for local integration testing.
+  "permission": {
+    "flaredeck_*": "deny"
+  },
+
+  "agent": {
+    "integration-test": {
+      "description": "Run approved local application exposure and integration tests through FlareDeck.",
+      "permission": {
+        "flaredeck_*": "allow"
+      }
+    }
+  }
+}

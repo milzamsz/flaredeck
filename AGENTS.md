@@ -1,209 +1,388 @@
 # AGENTS.md
 
-This file applies to the whole `flaredeck` repository. It is written for coding
-agents (LLM-driven dev assistants) working in this project.
+This file applies to the entire `flaredeck` repository. It is the always-on operating contract for coding agents and human contributors using AI-assisted development.
 
-## Project Shape
+## 1. Mission
 
-FlareDeck is a desktop GUI for managing Cloudflare Tunnels. It is a **hybrid
-client**: the control plane (zone lookup, tunnel creation, DNS routing) goes
-through the **Cloudflare REST API** with a per-profile token; the data plane
-(actually running the tunnel) is the local `cloudflared` CLI invoked as a
-child process.
+FlareDeck is a local-first desktop control panel for Cloudflare Tunnel development. The enhancement roadmap adds a trusted local development control plane that can be accessed through the desktop UI, a headless CLI, and a local MCP server.
 
-**Hard rule:** 1 profile = 1 Cloudflare Tunnel = 1 API token. Multi-tunnel
-profiles are not supported and that's deliberate.
+FlareDeck is **not** an embedded AI application, a hosted orchestration service, a general-purpose shell runner, or a production deployment platform.
 
-### Layout
+## 2. Source-of-truth hierarchy
 
-```
-src/                       React 19 + Vite + Tailwind v4 + shadcn/ui + Zustand
-├── store/app-store.ts     Zustand store + async workflows
+When information conflicts, use this order:
+
+1. `PRODUCT-SCOPE.md`
+2. Approved ADRs under `docs/adr/`
+3. `DOMAIN-MODEL.md`
+4. `ARCHITECTURE.md`
+5. `TECHNICAL.md`
+6. Detailed specifications under `docs/specs/`
+7. `PLAN.md`
+8. Active task specification
+9. Existing implementation
+
+The existing implementation is evidence of current behavior. It does not automatically override approved architecture. Report conflicts before implementing a material behavior change.
+
+## 3. Hard invariants
+
+These rules may not be changed without an explicit product decision and approved ADR:
+
+1. One profile equals one Cloudflare Tunnel and one API-token identity.
+2. API tokens are never stored in plaintext and never returned through UI, CLI, MCP, logs, or audit events.
+3. The existing keychain and encrypted fallback remain the only sanctioned token-write paths.
+4. Profile creation must verify required access before mutating local or Cloudflare state.
+5. Ingress configuration preserves the final catch-all `http_status:404` rule.
+6. WSL loopback-origin rewriting remains supported.
+7. Process lifecycle remains platform-aware, including process-tree termination and crashloop protection.
+8. Desktop, CLI, and MCP interfaces use shared Rust application services.
+9. The MCP server uses local stdio for the MVP and does not bind a network listener.
+10. No CLI or MCP operation accepts an arbitrary shell command.
+11. A workspace runtime may start only from a validated manifest with an active local trust approval for the current fingerprint.
+12. MCP callers cannot approve workspace trust.
+13. Stop and cleanup operations are idempotent and ownership-aware.
+14. New Cloudflare endpoints require scope analysis and actionable error hints.
+15. Existing updater signing assumptions must not be changed casually.
+
+## 4. Current project shape
+
+FlareDeck is a hybrid client:
+
+- control-plane operations use the Cloudflare REST API with a per-profile token;
+- data-plane traffic uses the local `cloudflared` child process;
+- React, Zustand, and Tauri provide the desktop interface;
+- Rust manages Cloudflare operations, local files, secrets, networking, DNS checks, WSL behavior, and child processes.
+
+### Existing frontend areas
+
+```text
+src/
+├── store/app-store.ts
 ├── lib/
-│   ├── tauriApi.ts        Typed boundary to Rust commands; helpers (routeDnsForProfile, normaliseDomainInput); CF_TOKEN_CREATE_URL
-│   └── yaml-helpers.ts    Ingress parsing, serialization, catch-all rule, WSL host rewriting
+│   ├── tauriApi.ts
+│   └── yaml-helpers.ts
 ├── components/
-│   ├── ui/                shadcn primitives — prefer these over new UI libs
-│   ├── app-sidebar.tsx    Sidebar with profile list, "+" trigger, API status badge
-│   ├── proxy-table.tsx    Ingress rules table
-│   └── proxy-form-dialog.tsx   Add/edit route, with Advanced (path) disclosure
+│   ├── ui/
+│   ├── app-sidebar.tsx
+│   ├── proxy-table.tsx
+│   └── proxy-form-dialog.tsx
 └── pages/
-    ├── Dashboard.tsx      Profile detail + NewProfileDialog (Name + Token + Domain)
-    ├── Config.tsx         CodeMirror YAML editor
-    └── Settings.tsx       cloudflared install/version, WSL, profile list, CredentialsCard, window, theme
-
-src-tauri/                 Tauri v2 + Rust
-├── Cargo.toml             keyring, reqwest, chacha20poly1305, base64, sha2, rand, tokio, sysinfo, hickory-resolver, …
-├── tauri.conf.json
-└── src/
-    ├── lib.rs             App setup, tray, single-instance, tauri::generate_handler! registrations
-    ├── cf_api.rs          CfClient — Cloudflare REST surface (verify, lookup, create_tunnel, preflight, upsert_dns_route) + scope-aware error hints
-    ├── cloudflared.rs     cloudflared binary discovery + cert.pem path resolution
-    ├── secrets.rs         Per-profile API tokens — primary: OS keychain; fallback: machine-key-encrypted file (ChaCha20-Poly1305)
-    ├── state.rs           Runtime child-process state per profile
-    ├── error.rs           AppError + serde Serialize for cross-boundary errors
-    ├── types.rs           Shared serde payloads (Profile, ProfileIndex, ProfilePatch, …)
-    └── commands/          tauri::command handlers
-        ├── cf.rs          cf_route_dns, cf_lookup_zone, create_tunnel_with_files (internal)
-        ├── config.rs      config_get, config_save, write_initial_config
-        ├── dns.rs         hickory-resolver wrapper
-        ├── network.rs     TCP probe for origin port checks
-        ├── prefs.rs       App prefs (minimize-to-tray, etc.)
-        ├── profiles.rs    profiles_list/update/delete/set_active/set_token/clear_token/verify_token/create_simple
-        ├── shell.rs       shell_open_external, shell_open_path (defense-in-depth wrappers)
-        ├── tunnel.rs      cloudflared_check, tunnel_status/start/stop/restart, tunnel_route_dns (CLI fallback)
-        └── wsl.rs         Detects WSL VM IP for the host-rewrite feature
+    ├── Dashboard.tsx
+    ├── Config.tsx
+    └── Settings.tsx
 ```
 
-### On-disk runtime data
+### Existing Rust areas
 
-- `~/.cloudflared/flaredeck.json` — the profile index (no secrets)
-- `~/.cloudflared/<profile-id>.yml` — cloudflared config per profile
-- `~/.cloudflared/<tunnel-uuid>.json` — cloudflared credentials per tunnel
-- `~/.cloudflared/cert.pem` — global cert from `cloudflared tunnel login` (only used by profiles created via the legacy CLI path or when `TUNNEL_ORIGIN_CERT` is read by cloudflared at run time)
-- `~/.cloudflared/flaredeck.secrets` — encrypted-file fallback for API tokens (only created when keychain is unavailable, e.g. WSL without `gnome-keyring`)
-- **API tokens themselves never live on disk in plaintext.** They live in the OS keychain (service `flaredeck`, account = profile UUID) or in the AEAD-encrypted fallback file.
+```text
+src-tauri/src/
+├── lib.rs
+├── cf_api.rs
+├── cloudflared.rs
+├── secrets.rs
+├── state.rs
+├── error.rs
+├── types.rs
+└── commands/
+    ├── cf.rs
+    ├── config.rs
+    ├── dns.rs
+    ├── network.rs
+    ├── prefs.rs
+    ├── profiles.rs
+    ├── shell.rs
+    ├── tunnel.rs
+    └── wsl.rs
+```
 
-Generated/build output to leave alone unless the user explicitly asks:
-`node_modules/`, `dist/`, `dist-windows/`, `src-tauri/target/`, `src-tauri/gen/`.
+### Target enhancement areas
 
-## Tauri Command Surface
+```text
+src-tauri/src/
+├── application/
+├── domain/
+├── ports/
+├── adapters/
+├── interfaces/
+└── bin/
+```
 
-Every command registered in `lib.rs:invoke_handler!` MUST have a matching wrapper in `src/lib/tauriApi.ts`. The shape and naming must agree (Rust snake_case ↔ JS camelCase via serde's `rename_all = "camelCase"`).
+Do not create all target folders in a single rename-only change. Extract one tested vertical slice at a time.
 
-When adding or modifying a command, update **all five** in the same change:
-1. Rust handler in `src-tauri/src/commands/`.
-2. Shared serde type in `src-tauri/src/types.rs` (or local to the command file if it's only used there).
-3. Registration in `src-tauri/src/lib.rs:invoke_handler!`.
-4. Frontend wrapper + type in `src/lib/tauriApi.ts`.
-5. Caller — Zustand action in `src/store/app-store.ts` or a component.
+## 5. On-disk data
 
-Skipping any of these will surface as either a frontend-only TS error or a silent Tauri "command not found" at runtime.
+Existing data under `~/.cloudflared/` includes:
 
-## Cloudflare Integration
+- profile index;
+- per-profile YAML;
+- tunnel credentials JSON;
+- optional `cert.pem`;
+- encrypted token fallback when keychain access is unavailable.
 
-### The flow
+New workspace, trust, session, and audit state must live in the FlareDeck application-data directory, not in the repository and not in browser storage. The repository may contain only the non-secret `.flaredeck/project.yaml` manifest and documentation.
 
-1. User creates a profile via `profiles_create_simple(name, token, domain, …)`.
-2. Backend stores the token in the keychain, calls `CfClient::lookup_zone_by_domain` to resolve account+zone, runs `CfClient::preflight_cfd_tunnel_scope` to verify the token has `Cloudflare Tunnel: Edit` before mutating any state, then calls `CfClient::create_tunnel` (POST `/accounts/{id}/cfd_tunnel`). The 32-byte tunnel secret is generated client-side and written into `<uuid>.json` so cloudflared can run the tunnel.
-3. Profile entry lands in `flaredeck.json` with `account_id`, `zone_id`, `zone_name`, `has_api_token: true`.
-4. Adding routes goes through `routeDnsForProfile` (in `tauriApi.ts`), which dispatches to `cf_route_dns` (API) when the profile has a token + zone, or `tunnel_route_dns` (CLI) otherwise.
-5. Starting a tunnel runs `cloudflared tunnel run` with `TUNNEL_ORIGIN_CERT` set to the profile's effective cert.
+Generated output that must not be edited or committed unless explicitly requested:
 
-### Token scopes
+- `node_modules/`
+- `dist/`
+- `dist-windows/`
+- `src-tauri/target/`
+- `src-tauri/gen/`
 
-A working FlareDeck token needs three permission groups. The template URL `CF_TOKEN_CREATE_URL` pre-ticks them, but Cloudflare's dashboard sometimes drops the prefill — the Settings credentials card and New Profile dialog list them inline as well:
+## 6. Required task workflow
 
-- `Account → Cloudflare Tunnel: Edit`
-- `Zone → Zone: Read`
-- `Zone → DNS: Edit`
+For every non-trivial task:
 
-If you change which Cloudflare endpoints the app calls, audit `hint_for(ApiCall, errors)` in `cf_api.rs` — it produces user-facing hints by `ApiCall` variant, and those hints name specific scopes.
+1. Read the active task and its parent phase in `PLAN.md`.
+2. Read relevant source-of-truth documents and ADRs.
+3. Inspect existing code before proposing edits.
+4. State any conflict, ambiguity, migration risk, security risk, or blocker.
+5. Define a small implementation plan tied to acceptance criteria.
+6. Implement only the approved task scope.
+7. Add or update tests before declaring completion.
+8. Run the required verification commands.
+9. Review the diff for unrelated churn and secret exposure.
+10. Update affected docs, schemas, and examples.
+11. Produce evidence: changed files, tests, commands, results, risks, and unresolved items.
 
-### CLI fallback
+Do not re-enter broad planning after implementation begins unless the scope materially changes.
 
-Some commands still exist for legacy / fallback use:
-- `tunnel_route_dns` — used by `routeDnsForProfile` when the profile has no API token; needs `cert.pem`.
-- `effective_cert_path(&Profile)` — resolves which cert.pem `cloudflared` should use when spawning the tunnel. The `Profile.cert_path` field exists but isn't surfaced in the UI; if set, it wins.
+## 7. Tauri command rule
 
-There is no "global login" UI any more. We don't expose `auth_check/auth_login/auth_logout`; if you need to add login UX back, you'd have to re-add those commands.
+Every Tauri command must be represented consistently in five places:
 
-## Implementation Guidance
+1. Rust handler.
+2. Shared serde request/response type.
+3. Registration in `lib.rs`.
+4. TypeScript wrapper and type in `src/lib/tauriApi.ts`.
+5. Caller in Zustand or a component.
 
-- **Don't introduce new Cloudflare API endpoints without a `hint_for` branch.** Auth errors look identical across endpoints (Cloudflare returns 10000 for "missing scope" *and* "bad token"); the only thing that disambiguates them is which call was being made.
-- **Don't mutate disk before pre-flight on new wizard-like flows.** `profiles_create_simple` is the model: zone lookup, then pre-flight, then state mutation. Otherwise a bad token leaves orphan files.
-- **Preserve YAML semantics.** Ingress edits go through `src/lib/yaml-helpers.ts`. The catch-all rule (`service: http_status:404`) is appended automatically; keep it.
-- **Preserve WSL host rewriting.** When `Profile.wslHost` is true, loopback service URLs get rewritten to the WSL VM IP on save. See `yaml-helpers.ts` and `commands/wsl.rs`.
-- **Errors:** use `AppError` / `AppResult`. Never `panic!` in a Tauri command — `AppError::serialize` produces a string the frontend toasts.
-- **State management:** the Zustand store is keyed off `activeProfileId`; switching profiles reloads config + tunnel status. New state generally goes in the store, not React component state, unless it's purely local UI (form drafts, disclosure open/close).
-- **Persisted state stays narrow.** Zustand `persist` middleware currently only saves `theme` and `activeProfileId`. Don't add tokens, profile lists, or other server state here.
-- **UI patterns:** shadcn from `src/components/ui/`, lucide-react icons, `cn()` from `src/lib/utils.ts`, Tailwind utilities. Don't add new UI libraries casually.
-- **Cross-platform paths matter.** This runs on Windows, macOS, Linux, and WSL. Use `std::path::PathBuf` and `dirs::home_dir()`; don't hardcode `/`.
-- **Process lifecycle is careful for a reason.** `commands/tunnel.rs` handles concurrent profile processes, log streaming, crashloop detection (3 fails in 30s), platform-specific kill (`taskkill /T /F` on Windows, `kill -TERM` on Unix). Don't simplify these without understanding why.
+New handlers must be thin adapters. Business orchestration belongs in application services.
 
-## Releases & Updates
+## 8. Cloudflare integration rules
 
-- **Release pipeline**: `.github/workflows/release.yml` builds Windows /
-  macOS / Linux on `git tag v*`, uploads to GitHub Releases, and pushes a
-  merged `latest.json` into the `flaredeck-web` repo's `public/`. See
-  `RELEASING.md` for the end-to-end procedure including secret setup.
-- **In-app updater**: `tauri-plugin-updater` + `tauri-plugin-process` are
-  wired in `lib.rs`. The hook in `src/lib/updater.ts` exposes
-  `useUpdater()` to the UI (used by `UpdateCard` in `Settings.tsx`). The
-  signing pubkey lives in `tauri-tauri.conf.json` under
-  `plugins.updater.pubkey`; never rotate it without breaking installed users.
-- **Download page**: reference React component + plain-HTML version at
-  `docs/website/`. They link to GitHub Releases via stable
-  `/releases/latest/download/<asset>` URLs and read version from
-  `/latest.json` on the same origin.
+- Preserve preflight-before-mutation behavior.
+- New endpoints require a named operation type and a corresponding user-facing error hint.
+- Do not widen token scopes without updating product scope, security docs, UI guidance, and an ADR.
+- Route creation and cleanup must be ownership-aware.
+- Persistent profile routes are not deleted as part of ordinary session cleanup.
+- Preserve API and CLI fallback behavior until an approved phase removes it.
+- Avoid real Cloudflare calls in standard CI.
 
-## Common Commands
+## 9. Workspace manifest rules
 
-From the repo root:
+The canonical project manifest is `.flaredeck/project.yaml`.
+
+The manifest:
+
+- contains no secrets;
+- uses executable and argument arrays rather than an opaque shell command;
+- resolves paths beneath the workspace root;
+- selects an existing profile;
+- declares readiness and exposure routes;
+- declares environment names explicitly;
+- is validated against `docs/specs/workspace.schema.json`;
+- contributes security-relevant fields to the trust fingerprint.
+
+Never add an MCP or CLI option that bypasses the manifest command with a caller-supplied command.
+
+## 10. Trust and authorization rules
+
+- Trust is local, explicit, revocable, and fingerprint-based.
+- A path alone is not trusted.
+- Manifest changes that affect execution, routes, environment, profile, readiness, or cleanup invalidate trust.
+- Display-only metadata may be excluded from the fingerprint.
+- AI tools may read trust status but may not create approval.
+- A test may use a fake trust repository; production code may not use a hidden auto-trust fallback.
+- Approval UI must show executable, arguments, working directory, environment names, readiness target, routes, profile, and lifecycle behavior.
+
+## 11. Process lifecycle rules
+
+- Spawn processes directly without a shell in the MVP.
+- Use platform-aware path handling.
+- Track process ownership by session.
+- Stop the entire owned process tree.
+- Bound stdout and stderr buffers.
+- Apply crashloop protection independently to development runtimes and tunnels.
+- Cancel readiness checks when a session stops.
+- A session may stop only the tunnel it started, unless an explicit user action authorizes wider impact.
+- Never simplify the existing tunnel process code without demonstrating equivalent cross-platform behavior.
+
+## 12. MCP rules
+
+- Use stdio for the MVP.
+- stdout contains only valid MCP protocol messages.
+- diagnostics go to stderr.
+- Keep the tool surface small and typed.
+- Reject unknown properties where practical.
+- Bound every log, list, and status response.
+- Redact paths more strictly than the desktop UI where appropriate.
+- Never expose token values, tunnel credential contents, raw environment values, unrestricted file access, or arbitrary Cloudflare API calls.
+- Do not add tools solely because an internal method exists.
+- Long-running tools must respect cancellation and timeouts.
+
+## 13. CLI rules
+
+- Support human and JSON output.
+- JSON mode has no ANSI escapes or decorative output.
+- Use stable response envelopes and exit-code categories.
+- Print data to stdout and diagnostics to stderr.
+- Never print secret values.
+- CLI behavior must be testable through snapshots or structured assertions.
+- Trust approval remains desktop-only until an ADR approves a secure interactive CLI flow.
+
+## 14. Error handling
+
+- Use `AppError` and `AppResult` or their approved successor.
+- No `panic!` in interface or application paths.
+- Errors crossing interfaces have stable codes and safe details.
+- Internal causes may be logged after redaction.
+- Retryability must be explicit where returned to CLI or MCP.
+- Cleanup errors must not replace the original failure; report both safely.
+
+## 15. State management
+
+- Zustand holds UI state and safe display models.
+- Pure form state may remain local to components.
+- Persisted browser state stays narrow and must never contain tokens, logs, environment values, profile lists, or authoritative session state.
+- Rust application services own authoritative workspace/session behavior.
+- Avoid a global mutable singleton when dependency injection or managed state can keep tests isolated.
+
+## 16. UI rules
+
+- Reuse shadcn primitives, Lucide icons, `cn()`, Tailwind, and existing theme patterns.
+- Do not add another UI library without justification.
+- Use text plus icons for status; color alone is insufficient.
+- Distinguish profile API status, tunnel status, runtime status, readiness, DNS, and public-route health.
+- Trust screens must show meaningful configuration, not a generic confirmation.
+- Never offer “show unredacted” behavior.
+- Follow `DESIGN.md` when Phase 7 begins.
+
+## 17. Testing expectations
+
+### Documentation-only
+
+- validate links and JSON files where tooling exists;
+- run `bash scripts/validate-package.sh` for the enhancement pack.
+
+### Frontend
+
+- `npm run lint`;
+- `npm run build` when types, imports, routes, or bundling behavior change;
+- component or state tests added when infrastructure exists;
+- desktop spot-check for Tauri-gated flows.
+
+### Rust
+
+- format check;
+- clippy with warnings denied;
+- relevant unit and integration tests;
+- fake adapters for Cloudflare, filesystem, process, trust, and session behavior.
+
+### Cross-boundary
+
+- verify Rust types, Tauri registrations, TypeScript wrappers, Zustand actions, and UI caller;
+- verify response casing and optional fields;
+- verify no secret appears in serialized results.
+
+### Security-sensitive
+
+Test normal, under-scoped, untrusted, changed-fingerprint, path-escape, readiness-timeout, crashloop, cancellation, repeated-stop, and cleanup-failure paths.
+
+If a command cannot run in the current environment, state that explicitly. Do not pretend that reading code is equivalent to a passing test suite, a habit software has somehow survived for decades.
+
+## 18. Common commands
+
+Current baseline:
 
 ```bash
 npm install
-npm run dev                  # web preview (most Tauri commands are no-ops here)
-npm run desktop              # tauri dev (real backend, real GUI)
-npm run lint                 # eslint
-npm run build                # tsc -b + vite build
-npm run desktop:build        # tauri build (produces native bundle)
+npm run dev
+npm run desktop
+npm run lint
+npm run build
+npm run desktop:build
 
-cargo check   --manifest-path src-tauri/Cargo.toml
-cargo clippy  --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-cargo test    --manifest-path src-tauri/Cargo.toml --lib cf_api::
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml --all-targets
 ```
 
-### Windows .exe / installer via cross-compile from WSL
-
-Requires (one-time): `sudo apt-get install -y lld clang nsis`,
-`cargo install cargo-xwin --locked`,
-`rustup target add x86_64-pc-windows-msvc`.
+The roadmap should add one aggregate verification command, preferably:
 
 ```bash
-PATH="/usr/lib/llvm-18/bin:$PATH" \
-  pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
+bash scripts/verify.sh
 ```
 
-Artifacts at:
-- `src-tauri/target/x86_64-pc-windows-msvc/release/flaredeck.exe`
-- `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/FlareDeck_<version>_x64-setup.exe`
+Use `npm` while `package-lock.json` is authoritative. Do not switch package managers casually.
 
-The `PATH` prefix is required so `cc-rs` can find `llvm-lib` and `llvm-rc` by their unsuffixed names.
+## 19. Dependency policy
 
-### Windows + WSL hybrid dev
+Before adding a dependency:
 
-When the project lives on a WSL UNC path (`\\wsl.localhost\Ubuntu\…`) and you want to run the desktop shell from Windows:
+- identify the exact capability gap;
+- check existing dependencies;
+- assess maintenance, license, platform support, binary size, security, and release impact;
+- prefer a small proven crate or no dependency when implementation is straightforward;
+- isolate MCP SDK dependencies so a later crate split remains possible;
+- do not add Redis, queues, databases, daemons, or hosted services without a product requirement.
 
-```powershell
-pwsh scripts/desktop-dev.ps1
-```
+## 20. Documentation update rules
 
-Vite runs inside WSL with the project's Linux `node_modules`; Tauri builds from Windows with the MSVC toolchain. Install the CLI once if missing: `npm install -g @tauri-apps/cli@^2.11`.
+Update documents when changing:
 
-## Verification Expectations
+- product boundary or non-goals: `PRODUCT-SCOPE.md`;
+- entities or invariants: `DOMAIN-MODEL.md`;
+- components or dependency direction: `ARCHITECTURE.md`;
+- commands, schemas, errors, files, or tests: `TECHNICAL.md` and `docs/specs/`;
+- a material decision: new or superseding ADR;
+- phase scope or dependencies: `PLAN.md`;
+- user interaction: `DESIGN.md`;
+- security control: `docs/security/`;
+- agent workflow: this file, skills, or prompts.
 
-- **Documentation-only changes:** verify the file is present and readable. No build needed.
-- **Frontend-only changes:** `npm run lint` always; `npx tsc -b` when types changed; `npm run build` when bundling-affecting changes (router, lazy imports, env).
-- **Rust/Tauri changes:** `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` (we keep warnings clean); `cargo test` if you touched `cf_api.rs` (the domain normaliser + apex walker are unit-tested).
-- **Cross-boundary changes:** run both. Specifically check that a new field added to `Profile` in Rust has the matching field in `src/store/app-store.ts:Profile` and `src/lib/tauriApi.ts:ProfilePatch`.
-- **UI changes:** spot-check in a browser (`npm run dev`) where you can. Tauri-gated invocations short-circuit there via `isTauri()`; full flow needs `npm run desktop`.
-- **Wizard / token flow:** if you touched `profiles_create_simple`, `cf_api.rs`, or `hint_for`, test with both a fully-scoped token (happy path) and an under-scoped token (error path). The pre-flight should fail cleanly without orphaning files on disk; verify `ls ~/.cloudflared/ | wc -l` before and after.
+Do not rewrite unrelated documents merely to harmonize wording.
 
-If a verification command can't run in your environment, say so explicitly in your final response.
+## 21. Definition of done
 
-## Working Practices
+A non-trivial task is complete only when:
 
-- **Read before editing.** The store / commands / UI are tightly coupled. Skim the related slice + wrapper + handler before making a change.
-- **Scope changes to the request.** Don't refactor unrelated code on the side. Don't churn `dist/` or `src-tauri/target/`.
-- **Don't revert user changes** unless the user explicitly asks.
-- **Search with `rg`** rather than `grep -r` — faster, respects `.gitignore`:
-  ```bash
-  rg "profiles_create_simple" src src-tauri
-  rg --files -g "!node_modules" -g "!dist" -g "!src-tauri/target"
-  ```
-- **npm with `package-lock.json`** — don't switch to pnpm/yarn without permission. (The cross-compile command above uses `pnpm` only because that's what's installed in the dev container; `npm run tauri build …` works equivalently if you have npm.)
-- **ASCII by default** for code and comments. Existing user-facing copy may use Unicode (e.g. "→" in scope hints); keep it consistent.
-- **New deps need justification.** Check what's already in `package.json` / `Cargo.toml`. We pulled in `chacha20poly1305` for a real reason (secrets fallback) — don't add crypto for cosmetic reasons.
-- **Don't bypass the keychain.** `secrets::store_token` is the only sanctioned token-write path. If it fails, the fallback file is the *next* layer, not a parallel option to mix and match.
-- **Plan mode is for design choices, not execution.** Once you have a plan approved, execute it; don't re-enter plan mode unless the scope materially changed.
+- acceptance criteria are met;
+- exclusions remain excluded;
+- tests cover success, failure, and cleanup;
+- required verification passes;
+- relevant docs and schemas are current;
+- no secret or sensitive fixture is committed;
+- compatibility and migration impacts are stated;
+- rollback is understood;
+- reviewer findings are resolved or explicitly accepted;
+- final evidence is concise and reproducible.
+
+## 22. Prohibited shortcuts
+
+Do not:
+
+- bypass trust for “local convenience”;
+- add `run_shell`, `execute_command`, or equivalent MCP tools;
+- read and return `.env` values;
+- put tokens in manifests or test fixtures;
+- duplicate orchestration in CLI or MCP;
+- stop tunnels not owned by the session without approval;
+- delete persistent routes during normal cleanup;
+- add HTTP MCP before a new threat model;
+- refactor all modules and add features in the same task;
+- modify core updater signing keys;
+- claim a task is verified when commands were not run.
+
+<!-- BEGIN AGENTIC KANBAN — DO NOT EDIT THIS SECTION -->
+## Agentic Kanban
+
+Read `.agentkanban/INSTRUCTION.md` for task workflow rules.
+Read `.agentkanban/memory.md` for project context.
+
+Enforcement mode: `warn`
+
+Load these project skills before working: `flaredeck-implementation`, `flaredeck-release`, `flaredeck-security-review`, `flaredeck-verification`.
+
+If a task file (`.agentkanban/tasks/**/*.md`) was referenced earlier in this conversation, re-read it before responding and always respond in and at the end the task file.
+<!-- END AGENTIC KANBAN -->

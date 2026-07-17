@@ -1,0 +1,111 @@
+# ===============================================================
+# Agentic Kanban board configuration (managed file)
+# Edit the values below; this header is regenerated on every save.
+#
+# profile: standard | lite        (lanes derive from profile)
+# enforcement.mode: strict | warn  (strict blocks illegal moves; warn allows and warns)
+#   overrides.allowed: true | false
+#   overrides.actors: [human] | [human, agent] | [agent]
+#   overrides.requireReason: true | false
+# reviewPolicy.<low|medium|high|critical>.<planning|implementation>:
+#   self-agent | independent-agent | independent-agent+human
+# worktreePolicy.requiredForImplementation: true | false
+# wipLimits.<lane>: <max tasks in that lane>  (e.g. in-progress: 1; omit/0 = no limit)
+# policies.transition.requireChecklistForInProgress: true | false
+# policies.transition.requireSpecForInProgress: true | false
+# policies.transition.requireDescriptionForReview: true | false
+# policies.transition.requireWorktreeForInProgress: true | false
+# policies.transition.requireDoneChecklistForDone: true | false  (review -> done also needs a full Definition of Done section)
+# policies.verification.testCommand: "npm test" (run on in-progress -> review)
+# policies.verification.lintCommand: "npm run lint" (run on in-progress -> review)
+# policies.verification.buildCommand: "npm run build" (run on in-progress -> review)
+# ===============================================================
+profile: autonomous
+profileVersion: 4
+lanes:
+  - backlog
+  - planning
+  - in-progress
+  - review
+  - done
+users: []
+enforcement:
+  mode: warn
+  overrides:
+    allowed: true
+    actors:
+      - agent
+    requireReason: true
+reviewPolicy:
+  low:
+    planning: self-agent
+    implementation: self-agent
+  medium:
+    planning: self-agent
+    implementation: self-agent
+  high:
+    planning: self-agent
+    implementation: self-agent
+  critical:
+    planning: self-agent
+    implementation: self-agent
+worktreePolicy:
+  requiredForImplementation: false
+policies:
+  transition:
+    requireChecklistForInProgress: true
+    requireSpecForInProgress: true
+    requireDescriptionForReview: true
+    requireWorktreeForInProgress: false
+    requireDoneChecklistForDone: true
+  verification:
+    testCommand: ""
+    lintCommand: ""
+    buildCommand: ""
+wipLimits:
+  in-progress: 5
+labels:
+  - phase-0
+  - baseline
+  - phase-1
+  - verification
+  - blocked-by:task_001_phase_0_baseline
+  - ci
+  - blocked-by:task_002_phase_1_verification
+  - testing
+  - phase-2
+  - application-service
+  - tunnel
+  - blocked-by:task_004_phase_1_fixtures
+  - process-lifecycle
+  - security
+  - blocked-by:task_005_phase_2_tunnel_status
+  - profiles
+  - routes
+  - blocked-by:task_006_phase_2_tunnel_lifecycle
+  - phase-3
+  - cli
+  - blocked-by:task_007_phase_2_profile_route_services
+  - phase-4
+  - trust
+  - runtime
+  - sessions
+  - blocked-by:task_008_phase_3_cli
+  - phase-5
+  - mcp
+  - blocked-by:task_009_phase_4_workspace_sessions
+  - phase-6
+  - ai-client
+  - phase-7
+  - ui
+  - accessibility
+  - phase-8
+  - webhook
+  - retention
+  - blocked-by:task_010_phase_5_mcp
+  - blocked-by:task_011_phase_6_ai_client_acceptance
+  - blocked-by:task_012_phase_7_desktop_workspace_ux
+  - phase-9
+  - release
+  - blocked-by:task_013_phase_8_temporary_routes_webhooks
+  - blocked-by:task_014_phase_9_release_hardening

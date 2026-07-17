@@ -16,6 +16,8 @@ enum ApiCall {
     ZoneLookup,
     CreateTunnel,
     DnsRoute,
+    DnsRouteRead,
+    DnsRouteDelete,
     /// Cheap read used to probe whether a token has Cloudflare Tunnel
     /// scope on a given account before we mutate any state.
     PreflightTunnelScope,
@@ -28,6 +30,8 @@ impl ApiCall {
             ApiCall::ZoneLookup => "looking up zone",
             ApiCall::CreateTunnel => "creating Cloudflare Tunnel",
             ApiCall::DnsRoute => "creating DNS record",
+            ApiCall::DnsRouteRead => "checking DNS record conflict",
+            ApiCall::DnsRouteDelete => "deleting owned DNS record",
             ApiCall::PreflightTunnelScope => "checking Cloudflare Tunnel scope",
         }
     }
@@ -74,8 +78,12 @@ struct DnsRecordBody<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-struct CfDnsRecord {
-    id: String,
+pub struct CfDnsRecord {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub content: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -185,6 +193,21 @@ impl CfClient {
         parse_envelope(resp, ctx).await
     }
 
+    async fn delete_json<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        ctx: ApiCall,
+    ) -> AppResult<T> {
+        let resp = self
+            .http
+            .delete(format!("{API_BASE}{path}"))
+            .bearer_auth(&self.token)
+            .send()
+            .await
+            .map_err(|e| AppError::Http(e.to_string()))?;
+        parse_envelope(resp, ctx).await
+    }
+
     pub async fn verify_token(&self) -> AppResult<TokenInfo> {
         let v: CfTokenVerify = self
             .get_json("/user/tokens/verify", ApiCall::VerifyToken)
@@ -231,14 +254,9 @@ impl CfClient {
                 .map_err(|e| AppError::Http(e.to_string()))?;
             let zones: Vec<CfZone> = parse_envelope(resp, ApiCall::ZoneLookup).await?;
             if let Some(z) = zones.into_iter().next() {
-                let account_id = z
-                    .account
-                    .and_then(|a| a.id)
-                    .ok_or_else(|| {
-                        AppError::Cloudflare(
-                            "zone response did not include an account id".into(),
-                        )
-                    })?;
+                let account_id = z.account.and_then(|a| a.id).ok_or_else(|| {
+                    AppError::Cloudflare("zone response did not include an account id".into())
+                })?;
                 return Ok(ZoneLookup {
                     zone_id: z.id,
                     zone_name: z.name,
@@ -307,6 +325,35 @@ impl CfClient {
             .await?;
         Ok(rec.id)
     }
+
+    pub async fn find_dns_route(
+        &self,
+        zone_id: &str,
+        hostname: &str,
+    ) -> AppResult<Option<CfDnsRecord>> {
+        let response = self
+            .http
+            .get(format!("{API_BASE}/zones/{zone_id}/dns_records"))
+            .query(&[("name", hostname), ("per_page", "100")])
+            .bearer_auth(&self.token)
+            .send()
+            .await
+            .map_err(|error| AppError::Http(error.to_string()))?;
+        let records: Vec<CfDnsRecord> = parse_envelope(response, ApiCall::DnsRouteRead).await?;
+        Ok(records
+            .into_iter()
+            .find(|record| record.name.eq_ignore_ascii_case(hostname)))
+    }
+
+    pub async fn delete_dns_route(&self, zone_id: &str, record_id: &str) -> AppResult<()> {
+        let _: CfDnsRecord = self
+            .delete_json(
+                &format!("/zones/{zone_id}/dns_records/{record_id}"),
+                ApiCall::DnsRouteDelete,
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 async fn parse_envelope<T: for<'de> Deserialize<'de>>(
@@ -360,17 +407,24 @@ fn hint_for(ctx: ApiCall, errors: &[CfError]) -> String {
     }
     match ctx {
         ApiCall::VerifyToken => "Token was rejected. It may have been deleted, expired, \
-or copied incomplete. Re-copy or create a new token.".into(),
+or copied incomplete. Re-copy or create a new token."
+            .into(),
 
         ApiCall::ZoneLookup => "Token cannot read zones. \
-Add Zone → Zone: Read to its scopes (Zone Resources can be specific zones or \"All zones\").".into(),
+Add Zone → Zone: Read to its scopes (Zone Resources can be specific zones or \"All zones\")."
+            .into(),
 
-        ApiCall::PreflightTunnelScope | ApiCall::CreateTunnel =>
+        ApiCall::PreflightTunnelScope | ApiCall::CreateTunnel => {
             "Token is missing Account → Cloudflare Tunnel: Edit. \
-Edit the token in the Cloudflare dashboard, add that permission, and try again.".into(),
+Edit the token in the Cloudflare dashboard, add that permission, and try again."
+                .into()
+        }
 
-        ApiCall::DnsRoute => "Token cannot write DNS records on this zone. \
-Add Zone → DNS: Edit to its scopes.".into(),
+        ApiCall::DnsRoute | ApiCall::DnsRouteRead | ApiCall::DnsRouteDelete => {
+            "Token cannot read or write DNS records on this zone. \
+Add Zone → DNS: Edit to its scopes."
+                .into()
+        }
     }
 }
 
@@ -378,7 +432,9 @@ Add Zone → DNS: Edit to its scopes.".into(),
 /// Returns `None` if nothing usable remains or the result has no dot.
 fn normalise_domain(input: &str) -> Option<String> {
     let s = input.trim().to_ascii_lowercase();
-    let s = s.trim_start_matches("https://").trim_start_matches("http://");
+    let s = s
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
     let s = s.split('/').next().unwrap_or("");
     let s = s.split('?').next().unwrap_or("");
     let s = s.split(':').next().unwrap_or("");
@@ -388,7 +444,9 @@ fn normalise_domain(input: &str) -> Option<String> {
         return None;
     }
     // bare sanity check — Cloudflare will reject anything truly weird
-    if s.chars().any(|c| !(c.is_ascii_alphanumeric() || c == '.' || c == '-')) {
+    if s.chars()
+        .any(|c| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+    {
         return None;
     }
     Some(s.to_string())
@@ -419,10 +477,22 @@ mod tests {
 
     #[test]
     fn normalises_common_inputs() {
-        assert_eq!(normalise_domain("Example.COM").as_deref(), Some("example.com"));
-        assert_eq!(normalise_domain("https://www.example.com/path").as_deref(), Some("example.com"));
-        assert_eq!(normalise_domain("api.example.com:8080").as_deref(), Some("api.example.com"));
-        assert_eq!(normalise_domain("example.com.").as_deref(), Some("example.com"));
+        assert_eq!(
+            normalise_domain("Example.COM").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(
+            normalise_domain("https://www.example.com/path").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(
+            normalise_domain("api.example.com:8080").as_deref(),
+            Some("api.example.com")
+        );
+        assert_eq!(
+            normalise_domain("example.com.").as_deref(),
+            Some("example.com")
+        );
         assert_eq!(normalise_domain("notadomain"), None);
         assert_eq!(normalise_domain(""), None);
         assert_eq!(normalise_domain("bad space.com"), None);

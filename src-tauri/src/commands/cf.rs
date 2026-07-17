@@ -3,7 +3,6 @@ use serde::Serialize;
 use crate::cf_api::{CfClient, ZoneLookup};
 use crate::cloudflared::cloudflared_dir;
 use crate::commands::config::write_initial_config;
-use crate::commands::profiles::get_profile;
 use crate::error::{AppError, AppResult};
 
 /// Credentials JSON cloudflared expects at `~/.cloudflared/<uuid>.json`.
@@ -41,7 +40,9 @@ pub(crate) async fn create_tunnel_with_files(
         TunnelSecret: &created.secret_b64,
     };
     let raw = serde_json::to_vec_pretty(&cred)?;
-    tokio::fs::write(&cred_path, raw).await.map_err(AppError::from)?;
+    tokio::fs::write(&cred_path, raw)
+        .await
+        .map_err(AppError::from)?;
     let cred_path_str = cred_path.to_string_lossy().to_string();
 
     write_initial_config(config_path, &created.id, &cred_path_str).await?;
@@ -55,20 +56,10 @@ pub async fn cf_route_dns(
     hostname: String,
     tunnel_id: String,
 ) -> AppResult<String> {
-    let profile = get_profile(&profile_id).await?;
-    let zone_id = profile
-        .zone_id
-        .clone()
-        .ok_or(AppError::MissingProfileField("zoneId"))?;
-    let client = CfClient::for_profile(&profile)?;
-    client
-        .upsert_dns_route(&zone_id, hostname.trim(), tunnel_id.trim())
-        .await
+    crate::application::route_service::upsert_dns_route(profile_id, hostname, tunnel_id).await
 }
 
 #[tauri::command]
 pub async fn cf_lookup_zone(profile_id: String, domain: String) -> AppResult<ZoneLookup> {
-    let profile = get_profile(&profile_id).await?;
-    let client = CfClient::for_profile(&profile)?;
-    client.lookup_zone_by_domain(domain.trim()).await
+    crate::application::route_service::lookup_zone(profile_id, domain).await
 }
