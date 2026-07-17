@@ -24,7 +24,7 @@ Working in `task_015_publish_v0_3_0.md`. The implementation is based on the exis
 ## Definition of Done
 
 - [x] (agent) Reviewed implementation is committed on a fresh branch and the generated ZIP is excluded.
-- [ ] (agent) Feature PR verification passes and the PR is merged into `main`.
+- [x] (agent) Feature PR verification passes and the PR is merged into `main`.
 - [ ] (agent) Version `0.3.0` is consistent across every guarded source and merged after verification.
 - [ ] (agent) Annotated `v0.3.0` is pushed only from the verified release commit.
 - [ ] (agent) Release workflow and native/manual gates complete without bypassing signing or platform failures.
@@ -44,5 +44,11 @@ Working in `task_015_publish_v0_3_0.md`. Commit `c236751` is pushed on `feat/ai-
 ### agent
 
 Working in `task_015_publish_v0_3_0.md`. PR CI exposed an environment-dependent CLI contract: `tunnel status` skipped profile validation when `cloudflared` was unavailable. The bypass is removed, the focused CLI suite passes, and `bash scripts/verify.sh` passes in full before the corrective push.
+
+### user
+
+### agent
+
+Working in `task_015_publish_v0_3_0.md`. PR #11 passed Verify on `f4a86c9` and merged into `main` as `9ebee43`. Release branch `release/v0.3.0` now carries only the version/release-note changes; the release verifier also guards the FlareDeck entry in `Cargo.lock`.
 
 ### user

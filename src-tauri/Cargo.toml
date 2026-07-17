@@ -1,6 +1,6 @@
 [package]
 name = "flaredeck"
-version = "0.2.3"
+version = "0.3.0"
 description = "A local development publish manager for Cloudflare Tunnel"
 authors = ["FlareDeck contributors"]
 edition = "2021"
