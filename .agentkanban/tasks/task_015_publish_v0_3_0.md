@@ -23,7 +23,7 @@ Working in `task_015_publish_v0_3_0.md`. The implementation is based on the exis
 
 ## Definition of Done
 
-- [ ] (agent) Reviewed implementation is committed on a fresh branch and the generated ZIP is excluded.
+- [x] (agent) Reviewed implementation is committed on a fresh branch and the generated ZIP is excluded.
 - [ ] (agent) Feature PR verification passes and the PR is merged into `main`.
 - [ ] (agent) Version `0.3.0` is consistent across every guarded source and merged after verification.
 - [ ] (agent) Annotated `v0.3.0` is pushed only from the verified release commit.
@@ -32,5 +32,11 @@ Working in `task_015_publish_v0_3_0.md`. The implementation is based on the exis
 ### agent
 
 Working in `task_015_publish_v0_3_0.md`. Pre-commit audit passed: aggregate verification is green (54 tests across eight suites), release/version contract is green, staged diff check is clean, no private-key/token signature matched, no credential/generated path is staged, and the generated ZIP plus release binaries/build output are ignored. `RELEASING.md` and the verifier now include both root `package-lock.json` version fields.
+
+### user
+
+### agent
+
+Working in `task_015_publish_v0_3_0.md`. Commit `c236751` is pushed on `feat/ai-development-control-plane`; PR #11 targets `main`: https://github.com/milzamsz/flaredeck/pull/11. The PR retains the existing `v0.2.3` hotfix that had not yet reached `main`. Waiting for GitHub verification before merge.
 
 ### user
