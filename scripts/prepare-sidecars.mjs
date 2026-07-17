@@ -36,6 +36,10 @@ if (requested === 'universal-apple-darwin') {
       '-output', destination,
     ])
     chmodSync(destination, 0o755)
+
+    const releaseDestination = join(root, 'src-tauri', 'target', requested, 'release', companion)
+    copyFileSync(destination, releaseDestination)
+    chmodSync(releaseDestination, 0o755)
   }
 } else {
   build(requested)
