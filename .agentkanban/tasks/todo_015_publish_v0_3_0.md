@@ -4,7 +4,7 @@
 - [x] Commit, push, open the feature PR, and monitor verification.
 - [x] Merge the feature PR and create the `0.3.0` version-bump PR.
 - [x] Merge the verified version bump and push annotated `v0.3.0`.
-- [ ] Monitor release artifacts, signatures, checksums, updater metadata, and platform checks.
+- [x] Monitor release artifacts, signatures, checksums, updater metadata, and platform checks.
 
 # Iteration 2
 
@@ -13,4 +13,4 @@
 - [ ] Fix Windows packaging blocker (`tauri-action` `light.exe`) and complete all-platform publish.
   - [x] Implemented a Windows-only release workflow workaround to skip WiX and build only NSIS (`-b nsis`) in
     `Build and publish` while preserving updater JSON preference for NSIS artifacts.
-  - [ ] Validate via new workflow rerun that Windows publish now succeeds and the release can publish.
+  - [x] Validate via new workflow rerun that Windows publish now succeeds and the release can publish.

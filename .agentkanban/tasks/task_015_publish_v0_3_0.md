@@ -128,3 +128,21 @@ Validation from local checks:
 Both checks pass. Next action is a fresh `Release` workflow rerun (`tag=v0.3.0`) to confirm Windows `Build and publish` now succeeds and the release can be published.
 
 ### user
+
+### agent
+
+Release workflow rerun completed:
+- Trigger: `gh workflow run Release --ref main -f tag=v0.3.0`
+- Run: `29566948028` (triggered via `workflow_dispatch`)
+- Result: `success`.
+- Matrix jobs: `Build Windows`, `Build Linux`, `Build macOS (universal)`, and `Update latest.json on flaredeck-web` all `success`.
+- `v0.3.0` release is now published (not draft), with 13 assets including:
+  - macOS universal app tarball and `.dmg`
+  - Linux `.deb`, `.rpm`, `.AppImage`
+  - Windows `FlareDeck_0.3.0_x64-setup.exe`
+  - signatures + updater manifests `latest.json` and `SHA256SUMS.txt`
+
+Observed evidence:
+- `gh release view v0.3.0` showed `publishedAt` and `assetCount`.
+- `latest.json` contains all expected platform keys and points to 0.3.0 assets for updater install.
+- SHA256 checksum file was generated and attached to the release.
