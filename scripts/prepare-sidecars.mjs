@@ -22,6 +22,12 @@ if (requested === 'universal-apple-darwin') {
   const targets = ['aarch64-apple-darwin', 'x86_64-apple-darwin']
   targets.forEach(build)
   for (const companion of companions) {
+    for (const target of targets) {
+      const source = join(root, 'src-tauri', 'target', target, 'release', companion)
+      const destination = join(output, `${companion}-${target}`)
+      copyFileSync(source, destination)
+      chmodSync(destination, 0o755)
+    }
     const destination = join(output, `${companion}-${requested}`)
     execFileSync('lipo', [
       '-create',

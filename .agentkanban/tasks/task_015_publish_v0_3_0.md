@@ -64,3 +64,9 @@ Working in `task_015_publish_v0_3_0.md`. The complete `0.3.0` version contract p
 Working in `task_015_publish_v0_3_0.md`. PR #12 passed CI and merged as `b5927b7`; annotated `v0.3.0` triggered release run 29560184350. Windows failed before packaging because the new `Cargo.lock` guard assumed LF-only checkout text. No GitHub release was created; the failed matrix was canceled. A CRLF-compatible guard is being verified before replacing the unpublished failed tag.
 
 ### user
+
+### agent
+
+Working in `task_015_publish_v0_3_0.md`. The CRLF fix merged through PR #13 and the replacement release run 29560543949 passed Windows release verification. macOS universal packaging then exposed missing per-architecture sidecar filenames: the preparation step built both architectures but retained only universal copies. The run was canceled before a release existed; preparation now preserves the two Tauri inputs and the universal smoke artifact.
+
+### user
