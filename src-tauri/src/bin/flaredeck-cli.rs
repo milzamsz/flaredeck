@@ -65,13 +65,9 @@ async fn run(command: &[String], context: &OperationContext) -> Result<(Value, S
         }
         ["tunnel", "status", profile] => {
             let installed = cloudflared::resolve_cloudflared_path().is_some();
-            let observed = if installed {
-                tunnel_service::observe(profile)
-                    .await
-                    .map_err(|error| error.to_string())?
-            } else {
-                None
-            };
+            let observed = tunnel_service::observe(profile)
+                .await
+                .map_err(|error| error.to_string())?;
             Ok((json!({
                 "profileId": profile,
                 "state": if observed.is_some() { "running" } else if installed { "stopped" } else { "unavailable" },

@@ -40,3 +40,9 @@ Working in `task_015_publish_v0_3_0.md`. Pre-commit audit passed: aggregate veri
 Working in `task_015_publish_v0_3_0.md`. Commit `c236751` is pushed on `feat/ai-development-control-plane`; PR #11 targets `main`: https://github.com/milzamsz/flaredeck/pull/11. The PR retains the existing `v0.2.3` hotfix that had not yet reached `main`. Waiting for GitHub verification before merge.
 
 ### user
+
+### agent
+
+Working in `task_015_publish_v0_3_0.md`. PR CI exposed an environment-dependent CLI contract: `tunnel status` skipped profile validation when `cloudflared` was unavailable. The bypass is removed, the focused CLI suite passes, and `bash scripts/verify.sh` passes in full before the corrective push.
+
+### user
